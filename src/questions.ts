@@ -1,3 +1,5 @@
+import { ADDITIONAL_QUESTIONS } from "./question-bank/additional";
+
 export type QuestionKind = "code" | "sql" | "concept" | "choice";
 export type Difficulty = "기초" | "실전" | "심화";
 
@@ -17,7 +19,7 @@ export interface StudyQuestion {
 
 // 최근 출제 흐름에서 반복되는 역량을 바탕으로 새로 만든 문제들이다.
 // 실제 기출문장을 복제하지 않고 코드 추적, SQL 작성, 핵심 개념 구분에 초점을 맞춘다.
-export const QUESTIONS: StudyQuestion[] = [
+const CORE_QUESTIONS: StudyQuestion[] = [
   {
     id: "c-loop-01",
     kind: "code",
@@ -709,3 +711,5 @@ export const QUESTIONS: StudyQuestion[] = [
     confusion: "무상태라는 말은 데이터베이스를 사용하지 않는다는 뜻이 아니라 클라이언트 세션 상태를 요청 사이에 보관하지 않는다는 뜻입니다."
   }
 ];
+
+export const QUESTIONS: StudyQuestion[] = [...CORE_QUESTIONS, ...ADDITIONAL_QUESTIONS];

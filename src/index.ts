@@ -95,7 +95,7 @@ export default {
       return Response.json({
         ok: true,
         service: "study-hub-bot",
-        version: "2.0.0",
+        version: "2.1.0",
         message: "공부봇이 실행 중입니다.",
         localTest: "/test/command?text=문제줘"
       });
@@ -219,11 +219,11 @@ export function parseCommand(input: string): Command {
     return { type: "reveal", action: "explain", target: "all" };
   }
 
-  if (/^문제줘$/.test(text)) {
+  if (/^문제\s*줘?$/.test(text)) {
     return { type: "quiz", count: 10, mode: "mixed", topic: "all" };
   }
 
-  const countMatch = text.match(/^문제\s*(\d+)\s*개\s*줘$/);
+  const countMatch = text.match(/^문제\s*(\d+)\s*개(?:\s*줘)?$/);
 
   if (countMatch) {
     return {
@@ -234,7 +234,7 @@ export function parseCommand(input: string): Command {
     };
   }
 
-  const topicMatch = text.match(/^(.+?)\s*문제(?:\s*(\d+)\s*개)?\s*줘$/);
+  const topicMatch = text.match(/^(.+?)\s*문제(?:\s*(\d+)\s*개)?(?:\s*줘)?$/);
 
   if (topicMatch) {
     const normalized = normalizeTopic(topicMatch[1]);
@@ -543,23 +543,27 @@ async function findSetInThread(botToken: string, channel: string, threadTs: stri
 
 function buildHelpMessage(): string {
   return [
-    ":blue_book: *공부봇 사용법*",
+    ":blue_book: *공부봇, 이렇게 사용하세요*",
+    "원하는 문제를 말하면 바로 출제해 드려요.",
     "",
-    "*문제 받기*",
-    "• `문제줘` → 실전·개념·보기 혼합 10문제",
-    "• `문제 5개 줘` → 원하는 개수",
-    "• `실전 문제줘` → 코드와 SQL 중심",
-    "• `개념 문제줘` → 단답과 보기 중심",
-    "• `보기 문제줘` → 헷갈리는 개념 선택형",
-    "• `C언어 문제줘` / `Java 문제줘` / `Python 문제줘`",
-    "• `SQL 문제줘` / `보안 문제줘` / `스케줄링 문제줘`",
+    "*바로 시작*",
+    "`문제줘`  기본 혼합 10문제",
+    "`문제 5개 줘`  원하는 개수만 출제",
+    "`실전 문제줘`  코드·SQL 중심",
+    "`개념 문제줘`  단답·보기 중심",
     "",
-    "*문제 스레드 안에서*",
-    "• `정답줘` → 전체 정답",
-    "• `3번 힌트` → 정답 없는 힌트",
-    "• `3번 정답` → 해당 문제 정답",
-    "• `3번 해설` → 쉬운 해설과 혼동 포인트",
-    "• `전체 해설` → 모든 정답과 해설"
+    "*과목을 골라서*",
+    "`C언어 문제줘`  `Java 문제줘`  `Python 문제줘`",
+    "`SQL 문제줘`  `DB 문제줘`  `보안 문제줘`",
+    "`네트워크 문제줘`  `스케줄링 문제줘`",
+    "",
+    "*문제를 받은 뒤 같은 스레드에서*",
+    "`3번 힌트`  힌트만 보기",
+    "`3번 정답`  정답만 확인",
+    "`3번 해설`  풀이와 혼동 포인트 확인",
+    "`정답줘`  전체 정답 · `전체 해설`  전체 풀이",
+    "",
+    "> 예시: `SQL 문제 5개 줘`"
   ].join("\n");
 }
 
