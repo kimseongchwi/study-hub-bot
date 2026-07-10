@@ -1,8 +1,8 @@
 # Study Hub Bot
 
-Slack에서 `문제줘`라고 입력하면 정보처리기사 실기 테스트 문제를 답하는 Cloudflare Worker 프로젝트입니다.
+Slack에서 정보처리기사 실기와 개념 복습 문제를 풀 수 있는 Cloudflare Worker 프로젝트입니다.
 
-현재 1차 버전의 목표는 **Slack 메시지 감지 → Worker 실행 → Slack 스레드 답변** 연결 확인입니다. AI 문제 생성, 채점, 정답·해설 상태 저장, Notion 오답노트는 연결 확인 후 추가합니다.
+2차 버전은 최근 출제 흐름을 참고해 직접 만든 문제은행에서 코드 추적, SQL, 개념 단답, 보기형 문제를 균형 있게 출제합니다. 실제 기출문장을 복제하지 않으며, 문제 스레드에서 정답·힌트·쉬운 해설과 헷갈리는 개념을 확인할 수 있습니다.
 
 ## 실행 환경
 
@@ -16,12 +16,27 @@ nvm install 22
 nvm use
 ```
 
-## 현재 지원 명령어
+## 지원 명령어
 
 - `문제줘`
 - `문제 5개 줘`
+- `실전 문제줘`
+- `개념 문제줘`
+- `보기 문제줘`
+- `C언어 문제줘`
+- `Java 문제줘`
+- `Python 문제줘`
+- `SQL 문제줘`
+- `보안 문제줘`
 - `스케줄링 문제줘`
+- 문제 스레드에서 `정답줘`
+- 문제 스레드에서 `3번 힌트`
+- 문제 스레드에서 `3번 정답`
+- 문제 스레드에서 `3번 해설`
+- 문제 스레드에서 `전체 해설`
 - `도움말`
+
+기본 10문제는 코드 추적 비중을 가장 높게 두고 SQL·데이터베이스, 개념 단답, 보기형을 섞습니다. 주제별 문제가 부족한 경우 같은 출제 영역의 연관 문제로 채웁니다.
 
 ## 1. 설치
 
@@ -67,7 +82,9 @@ http://localhost:8787/test/command?text=문제줘
 
 ```text
 http://localhost:8787/test/command?text=문제%205개%20줘
-http://localhost:8787/test/command?text=스케줄링%20문제줘
+http://localhost:8787/test/command?text=실전%20문제%205개%20줘
+http://localhost:8787/test/command?text=보기%20문제%203개%20줘
+http://localhost:8787/test/command?text=SQL%20문제%204개%20줘
 http://localhost:8787/test/command?text=도움말
 ```
 
@@ -120,10 +137,19 @@ https://study-hub-bot.<계정>.workers.dev/slack/events
 
 명령 메시지의 스레드에 테스트 문제 10개가 나타나면 성공입니다.
 
+## 기존 설치에서 2차 버전으로 업데이트
+
+이미 Slack 앱과 Worker가 연결되어 있다면 추가 권한이나 비밀값 없이 프로젝트 폴더에서 다음 명령만 실행합니다.
+
+```bash
+npm run deploy
+```
+
+배포가 끝나면 Slack에서 `문제줘`를 입력합니다. 정답과 해설 명령은 공부봇 답변이 달린 같은 스레드 안에서 사용해야 합니다.
+
 ## 다음 개발 순서
 
-1. Cloudflare Workers AI로 문제·해설 생성
-2. D1에 현재 문제와 정답 저장
-3. 답안 채점과 오답 재출제
+1. 사용자의 답안 자동 채점
+2. 오답 유형별 재출제
+3. Cloudflare Workers AI를 이용한 추가 변형 문제 생성
 4. Notion 오답노트 자동 저장
-# study-hub-bot

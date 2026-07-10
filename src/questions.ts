@@ -1,0 +1,711 @@
+export type QuestionKind = "code" | "sql" | "concept" | "choice";
+export type Difficulty = "기초" | "실전" | "심화";
+
+export interface StudyQuestion {
+  id: string;
+  kind: QuestionKind;
+  topic: string;
+  difficulty: Difficulty;
+  tags: string[];
+  prompt: string;
+  choices?: string[];
+  answer: string;
+  hint: string;
+  explanation: string;
+  confusion: string;
+}
+
+// 최근 출제 흐름에서 반복되는 역량을 바탕으로 새로 만든 문제들이다.
+// 실제 기출문장을 복제하지 않고 코드 추적, SQL 작성, 핵심 개념 구분에 초점을 맞춘다.
+export const QUESTIONS: StudyQuestion[] = [
+  {
+    id: "c-loop-01",
+    kind: "code",
+    topic: "C언어",
+    difficulty: "기초",
+    tags: ["code", "c", "제어문", "반복문"],
+    prompt: [
+      "다음 C 프로그램의 출력값을 쓰시오.",
+      "```c",
+      "int sum = 0;",
+      "for (int i = 1; i <= 5; i++) {",
+      "  if (i % 2 == 1) sum += i;",
+      "}",
+      "printf(\"%d\", sum);",
+      "```"
+    ].join("\n"),
+    answer: "9",
+    hint: "1부터 5까지의 수 중 홀수만 더합니다.",
+    explanation: "조건을 만족하는 값은 1, 3, 5이고 합은 1 + 3 + 5 = 9입니다.",
+    confusion: "반복 횟수보다 if 조건을 통과하는 값만 추려서 계산해야 합니다."
+  },
+  {
+    id: "c-bit-01",
+    kind: "code",
+    topic: "C언어",
+    difficulty: "실전",
+    tags: ["code", "c", "비트", "연산자"],
+    prompt: [
+      "다음 C 프로그램의 출력값을 쓰시오.",
+      "```c",
+      "int a = 12;  // 1100",
+      "int b = 10;  // 1010",
+      "printf(\"%d\", (a & b) + (a ^ b));",
+      "```"
+    ].join("\n"),
+    answer: "14",
+    hint: "AND와 XOR 결과를 각각 2진수로 계산해 보세요.",
+    explanation: "12 & 10은 1000₂로 8이고, 12 ^ 10은 0110₂로 6입니다. 따라서 8 + 6 = 14입니다.",
+    confusion: "&는 둘 다 1일 때만 1, ^는 서로 다를 때 1입니다."
+  },
+  {
+    id: "c-pointer-01",
+    kind: "code",
+    topic: "C언어",
+    difficulty: "실전",
+    tags: ["code", "c", "포인터", "배열"],
+    prompt: [
+      "다음 C 프로그램의 출력값을 쓰시오.",
+      "```c",
+      "int a[] = {2, 4, 6, 8};",
+      "int *p = a;",
+      "p += 2;",
+      "printf(\"%d\", *p + *(p - 1));",
+      "```"
+    ].join("\n"),
+    answer: "10",
+    hint: "p += 2 이후 p가 배열의 몇 번째 원소를 가리키는지 확인하세요.",
+    explanation: "p는 a[2]인 6을 가리킵니다. *(p - 1)은 a[1]인 4이므로 합은 10입니다.",
+    confusion: "p + 1은 주소를 1바이트가 아니라 자료형 한 칸만큼 이동시킵니다."
+  },
+  {
+    id: "c-struct-01",
+    kind: "code",
+    topic: "C언어",
+    difficulty: "실전",
+    tags: ["code", "c", "구조체", "배열"],
+    prompt: [
+      "다음 C 프로그램의 출력값을 쓰시오.",
+      "```c",
+      "struct Item { int price; int count; };",
+      "struct Item items[2] = {{100, 2}, {50, 3}};",
+      "int total = 0;",
+      "for (int i = 0; i < 2; i++)",
+      "  total += items[i].price * items[i].count;",
+      "printf(\"%d\", total);",
+      "```"
+    ].join("\n"),
+    answer: "350",
+    hint: "각 구조체의 price와 count를 곱한 뒤 합합니다.",
+    explanation: "첫 항목은 100×2=200, 둘째 항목은 50×3=150이므로 합계는 350입니다.",
+    confusion: "items[i].price처럼 점 연산자로 구조체 멤버에 접근합니다."
+  },
+  {
+    id: "c-recursion-01",
+    kind: "code",
+    topic: "C언어",
+    difficulty: "실전",
+    tags: ["code", "c", "재귀", "함수"],
+    prompt: [
+      "다음 C 프로그램에서 f(527)의 반환값을 쓰시오.",
+      "```c",
+      "int f(int n) {",
+      "  if (n == 0) return 0;",
+      "  return n % 10 + f(n / 10);",
+      "}",
+      "```"
+    ].join("\n"),
+    answer: "14",
+    hint: "매 호출에서 마지막 자릿수를 더하고 마지막 자릿수를 제거합니다.",
+    explanation: "527 % 10 = 7, 52 % 10 = 2, 5 % 10 = 5이므로 7 + 2 + 5 = 14입니다.",
+    confusion: "정수 나눗셈 n / 10은 소수점 이하를 버립니다."
+  },
+  {
+    id: "c-increment-01",
+    kind: "code",
+    topic: "C언어",
+    difficulty: "실전",
+    tags: ["code", "c", "증감연산자", "연산자"],
+    prompt: [
+      "다음 C 프로그램의 출력값을 순서대로 쓰시오.",
+      "```c",
+      "int a = 3;",
+      "int b = a++;",
+      "int c = ++a;",
+      "printf(\"%d %d %d\", a, b, c);",
+      "```"
+    ].join("\n"),
+    answer: "5 3 5",
+    hint: "후위 증가와 전위 증가가 값을 언제 바꾸는지 구분하세요.",
+    explanation: "b에는 증가 전 값 3이 들어가고 a는 4가 됩니다. ++a로 a를 먼저 5로 만든 뒤 c에 5가 저장됩니다.",
+    confusion: "a++는 사용 후 증가, ++a는 증가 후 사용입니다."
+  },
+  {
+    id: "c-array-01",
+    kind: "code",
+    topic: "C언어",
+    difficulty: "기초",
+    tags: ["code", "c", "배열", "반복문"],
+    prompt: [
+      "다음 C 프로그램의 출력값을 쓰시오.",
+      "```c",
+      "int a[3][3] = {{1,2,3},{4,5,6},{7,8,9}};",
+      "int sum = 0;",
+      "for (int i = 0; i < 3; i++) sum += a[i][i];",
+      "printf(\"%d\", sum);",
+      "```"
+    ].join("\n"),
+    answer: "15",
+    hint: "행 인덱스와 열 인덱스가 같은 원소만 선택됩니다.",
+    explanation: "주대각선 원소 a[0][0], a[1][1], a[2][2]는 1, 5, 9이며 합은 15입니다.",
+    confusion: "a[i][i]는 주대각선이고 a[i][2-i]는 반대 대각선입니다."
+  },
+  {
+    id: "java-override-01",
+    kind: "code",
+    topic: "Java",
+    difficulty: "기초",
+    tags: ["code", "java", "상속", "오버라이딩"],
+    prompt: [
+      "다음 Java 프로그램의 출력값을 쓰시오.",
+      "```java",
+      "class Parent { String name() { return \"P\"; } }",
+      "class Child extends Parent { String name() { return \"C\"; } }",
+      "Parent obj = new Child();",
+      "System.out.print(obj.name());",
+      "```"
+    ].join("\n"),
+    answer: "C",
+    hint: "참조 변수의 타입보다 실제 생성된 객체의 메서드가 중요합니다.",
+    explanation: "오버라이딩된 인스턴스 메서드는 실행 시 실제 객체인 Child를 기준으로 호출되어 C가 출력됩니다.",
+    confusion: "오버로딩은 매개변수 구성이 다른 것이고, 오버라이딩은 상속받은 메서드를 재정의하는 것입니다."
+  },
+  {
+    id: "java-field-01",
+    kind: "code",
+    topic: "Java",
+    difficulty: "실전",
+    tags: ["code", "java", "상속", "필드"],
+    prompt: [
+      "다음 Java 프로그램의 출력값을 쓰시오.",
+      "```java",
+      "class A { int x = 1; int getX() { return x; } }",
+      "class B extends A { int x = 2; int getX() { return x; } }",
+      "A obj = new B();",
+      "System.out.print(obj.x + \" \" + obj.getX());",
+      "```"
+    ].join("\n"),
+    answer: "1 2",
+    hint: "필드 접근과 오버라이딩 메서드 호출의 기준은 서로 다릅니다.",
+    explanation: "필드는 참조 타입 A를 기준으로 1을 읽고, 메서드는 실제 객체 B의 getX()가 호출되어 2를 반환합니다.",
+    confusion: "Java 필드는 다형적으로 오버라이딩되지 않지만 인스턴스 메서드는 오버라이딩됩니다."
+  },
+  {
+    id: "java-exception-01",
+    kind: "code",
+    topic: "Java",
+    difficulty: "실전",
+    tags: ["code", "java", "예외", "finally"],
+    prompt: [
+      "다음 Java 프로그램의 출력 순서를 쓰시오.",
+      "```java",
+      "try {",
+      "  int n = 10 / 0;",
+      "  System.out.print(\"T\");",
+      "} catch (ArithmeticException e) {",
+      "  System.out.print(\"C\");",
+      "} finally {",
+      "  System.out.print(\"F\");",
+      "}",
+      "```"
+    ].join("\n"),
+    answer: "CF",
+    hint: "예외 발생 뒤 catch와 finally의 실행 여부를 확인하세요.",
+    explanation: "0으로 나누면서 예외가 발생해 T는 출력되지 않습니다. catch에서 C, 항상 실행되는 finally에서 F가 출력됩니다.",
+    confusion: "finally는 일반적인 예외 처리 흐름에서 예외 발생 여부와 관계없이 실행됩니다."
+  },
+  {
+    id: "java-string-01",
+    kind: "code",
+    topic: "Java",
+    difficulty: "기초",
+    tags: ["code", "java", "문자열", "equals"],
+    prompt: [
+      "다음 Java 프로그램의 출력값을 쓰시오.",
+      "```java",
+      "String a = new String(\"hi\");",
+      "String b = new String(\"hi\");",
+      "System.out.print((a == b) + \" \" + a.equals(b));",
+      "```"
+    ].join("\n"),
+    answer: "false true",
+    hint: "==와 equals()가 각각 무엇을 비교하는지 생각하세요.",
+    explanation: "a와 b는 서로 다른 객체라 ==는 false이고, 문자열 내용은 같으므로 equals()는 true입니다.",
+    confusion: "==는 참조 동일성, String.equals()는 문자열 내용을 비교합니다."
+  },
+  {
+    id: "java-interface-01",
+    kind: "code",
+    topic: "Java",
+    difficulty: "실전",
+    tags: ["code", "java", "인터페이스", "다형성"],
+    prompt: [
+      "다음 Java 프로그램의 출력값을 쓰시오.",
+      "```java",
+      "interface Calc { int run(int x); }",
+      "class DoubleCalc implements Calc {",
+      "  public int run(int x) { return x * 2; }",
+      "}",
+      "Calc c = new DoubleCalc();",
+      "System.out.print(c.run(7));",
+      "```"
+    ].join("\n"),
+    answer: "14",
+    hint: "구현 클래스의 run 메서드에 7이 전달됩니다.",
+    explanation: "DoubleCalc가 Calc의 run을 구현했고 7×2를 반환하므로 14가 출력됩니다.",
+    confusion: "인터페이스 타입 변수도 구현 객체를 참조해 다형적으로 메서드를 호출할 수 있습니다."
+  },
+  {
+    id: "python-slice-01",
+    kind: "code",
+    topic: "Python",
+    difficulty: "기초",
+    tags: ["code", "python", "슬라이싱", "리스트"],
+    prompt: [
+      "다음 Python 코드의 출력값을 쓰시오.",
+      "```python",
+      "nums = [1, 2, 3, 4, 5]",
+      "print(nums[1:5:2])",
+      "```"
+    ].join("\n"),
+    answer: "[2, 4]",
+    hint: "시작 인덱스 1부터 종료 인덱스 5 직전까지 2칸씩 이동합니다.",
+    explanation: "인덱스 1과 3의 값인 2와 4가 선택됩니다. 종료 인덱스 5는 포함되지 않습니다.",
+    confusion: "슬라이싱의 종료 인덱스는 포함되지 않습니다."
+  },
+  {
+    id: "python-dict-01",
+    kind: "code",
+    topic: "Python",
+    difficulty: "실전",
+    tags: ["code", "python", "딕셔너리", "컴프리헨션"],
+    prompt: [
+      "다음 Python 코드의 출력값을 쓰시오.",
+      "```python",
+      "result = {x: x*x for x in range(1, 5) if x % 2 == 0}",
+      "print(result)",
+      "```"
+    ].join("\n"),
+    answer: "{2: 4, 4: 16}",
+    hint: "1부터 4까지 중 짝수만 키가 됩니다.",
+    explanation: "조건을 통과하는 x는 2와 4이며 각각 제곱한 값 4와 16이 값으로 저장됩니다.",
+    confusion: "range(1, 5)는 1, 2, 3, 4를 만들고 5는 포함하지 않습니다."
+  },
+  {
+    id: "python-inherit-01",
+    kind: "code",
+    topic: "Python",
+    difficulty: "실전",
+    tags: ["code", "python", "상속", "super"],
+    prompt: [
+      "다음 Python 코드의 출력값을 쓰시오.",
+      "```python",
+      "class A:",
+      "    def value(self): return 3",
+      "class B(A):",
+      "    def value(self): return super().value() + 4",
+      "print(B().value())",
+      "```"
+    ].join("\n"),
+    answer: "7",
+    hint: "부모 메서드가 반환한 값에 4를 더합니다.",
+    explanation: "super().value()는 A.value()의 반환값 3이고 여기에 4를 더해 7을 반환합니다.",
+    confusion: "super()는 부모 클래스의 구현을 재사용할 때 사용합니다."
+  },
+  {
+    id: "python-list-01",
+    kind: "code",
+    topic: "Python",
+    difficulty: "기초",
+    tags: ["code", "python", "리스트", "컴프리헨션"],
+    prompt: [
+      "다음 Python 코드의 출력값을 쓰시오.",
+      "```python",
+      "values = [x*x for x in range(6) if x % 2 == 1]",
+      "print(values)",
+      "```"
+    ].join("\n"),
+    answer: "[1, 9, 25]",
+    hint: "0부터 5까지의 홀수만 제곱합니다.",
+    explanation: "홀수 1, 3, 5의 제곱은 각각 1, 9, 25입니다.",
+    confusion: "조건문은 값을 변환하기 전에 어떤 원소를 포함할지 결정합니다."
+  },
+  {
+    id: "sql-group-01",
+    kind: "sql",
+    topic: "SQL",
+    difficulty: "실전",
+    tags: ["sql", "group by", "having", "집계"],
+    prompt: [
+      "SALES(dept, amount) 테이블에서 부서별 판매 합계가 1000 이상인 부서와 합계를 조회하는 SQL을 쓰시오.",
+      "결과는 합계가 큰 순서로 정렬한다."
+    ].join("\n"),
+    answer: "SELECT dept, SUM(amount) AS total FROM SALES GROUP BY dept HAVING SUM(amount) >= 1000 ORDER BY total DESC;",
+    hint: "그룹을 만든 뒤 집계 결과를 거르는 절은 HAVING입니다.",
+    explanation: "GROUP BY로 부서별 그룹을 만들고 SUM으로 합계를 구합니다. 집계 결과 조건은 WHERE가 아니라 HAVING에 작성합니다.",
+    confusion: "WHERE는 그룹화 전 행을, HAVING은 그룹화 후 집계 결과를 필터링합니다."
+  },
+  {
+    id: "sql-left-join-01",
+    kind: "sql",
+    topic: "SQL",
+    difficulty: "실전",
+    tags: ["sql", "join", "left join"],
+    prompt: "DEPT(id, name)의 모든 부서와 EMP(dept_id)의 사원 수를 조회하되 사원이 없는 부서도 0명으로 표시하는 SQL을 쓰시오.",
+    answer: "SELECT d.id, d.name, COUNT(e.dept_id) AS emp_count FROM DEPT d LEFT JOIN EMP e ON d.id = e.dept_id GROUP BY d.id, d.name;",
+    hint: "기준 테이블의 모든 행을 남기는 외부 조인과 NULL을 세지 않는 COUNT(열)를 사용합니다.",
+    explanation: "LEFT JOIN으로 모든 부서를 유지하고, COUNT(e.dept_id)는 일치하는 사원이 없는 NULL을 제외해 0을 반환합니다.",
+    confusion: "COUNT(*)를 쓰면 외부 조인으로 남은 행까지 세어 사원 없는 부서가 1로 나올 수 있습니다."
+  },
+  {
+    id: "sql-null-01",
+    kind: "sql",
+    topic: "SQL",
+    difficulty: "실전",
+    tags: ["sql", "null", "count", "집계"],
+    prompt: [
+      "SCORE 테이블의 score 값이 80, NULL, 90일 때 다음 결과를 순서대로 쓰시오.",
+      "```sql",
+      "SELECT COUNT(*), COUNT(score), AVG(score) FROM SCORE;",
+      "```"
+    ].join("\n"),
+    answer: "3, 2, 85",
+    hint: "COUNT(*)와 달리 대부분의 집계 함수는 NULL을 제외합니다.",
+    explanation: "전체 행은 3개, NULL이 아닌 score는 2개입니다. 평균도 NULL을 제외해 (80+90)/2=85입니다.",
+    confusion: "NULL은 0이 아니라 값이 없거나 알 수 없음을 의미합니다."
+  },
+  {
+    id: "sql-case-01",
+    kind: "sql",
+    topic: "SQL",
+    difficulty: "실전",
+    tags: ["sql", "case", "update"],
+    prompt: "EMP 테이블에서 grade가 'A'인 직원의 salary는 10%, 나머지는 5% 인상하는 UPDATE문을 CASE를 사용해 쓰시오.",
+    answer: "UPDATE EMP SET salary = salary * CASE WHEN grade = 'A' THEN 1.10 ELSE 1.05 END;",
+    hint: "SET 절의 새 값을 CASE 표현식으로 계산합니다.",
+    explanation: "CASE가 각 행의 grade를 검사해 서로 다른 인상률을 반환하고 기존 salary에 곱합니다.",
+    confusion: "CASE는 문장이 아니라 하나의 값을 반환하는 표현식으로 사용할 수 있습니다."
+  },
+  {
+    id: "sql-union-01",
+    kind: "choice",
+    topic: "SQL",
+    difficulty: "기초",
+    tags: ["sql", "union", "보기"],
+    prompt: "두 SELECT 결과를 합치면서 중복 행도 그대로 유지하려고 한다. 알맞은 연산자를 고르시오.",
+    choices: ["① UNION", "② UNION ALL", "③ INTERSECT", "④ DISTINCT"],
+    answer: "② UNION ALL",
+    hint: "ALL이 붙으면 중복 제거 과정을 수행하지 않습니다.",
+    explanation: "UNION은 중복을 제거하고 UNION ALL은 중복을 포함해 모든 행을 합칩니다.",
+    confusion: "DISTINCT는 단일 SELECT 결과의 중복 제거에 사용합니다."
+  },
+  {
+    id: "sql-grant-01",
+    kind: "sql",
+    topic: "SQL",
+    difficulty: "기초",
+    tags: ["sql", "dcl", "grant"],
+    prompt: "사용자 KIM에게 EMP 테이블의 조회 권한을 부여하는 SQL을 쓰시오.",
+    answer: "GRANT SELECT ON EMP TO KIM;",
+    hint: "권한 부여는 GRANT, 회수는 REVOKE입니다.",
+    explanation: "GRANT 뒤에 권한 SELECT, 대상 객체 EMP, 권한을 받을 사용자 KIM을 차례로 씁니다.",
+    confusion: "GRANT는 권한 부여이고 REVOKE는 이미 부여한 권한의 회수입니다."
+  },
+  {
+    id: "db-3nf-01",
+    kind: "concept",
+    topic: "데이터베이스",
+    difficulty: "기초",
+    tags: ["database", "db", "정규화", "3nf"],
+    prompt: "제3정규형(3NF)에서 제거해야 하는 함수 종속의 종류를 쓰시오.",
+    answer: "이행적 함수 종속",
+    hint: "A→B이고 B→C일 때 A→C가 성립하는 관계입니다.",
+    explanation: "3NF는 기본키가 아닌 속성이 다른 비기본 속성에 종속되는 이행적 함수 종속을 제거합니다.",
+    confusion: "2NF는 부분 함수 종속, 3NF는 이행적 함수 종속 제거가 핵심입니다."
+  },
+  {
+    id: "db-key-01",
+    kind: "choice",
+    topic: "데이터베이스",
+    difficulty: "기초",
+    tags: ["database", "db", "키", "보기"],
+    prompt: "튜플을 유일하게 식별할 수 있는 최소 속성 집합을 고르시오.",
+    choices: ["① 슈퍼키", "② 후보키", "③ 외래키", "④ 대체키"],
+    answer: "② 후보키",
+    hint: "유일성과 최소성을 모두 만족해야 합니다.",
+    explanation: "후보키는 튜플을 유일하게 식별하는 유일성과 불필요한 속성이 없는 최소성을 만족합니다.",
+    confusion: "슈퍼키는 유일성만 만족하며 불필요한 속성을 포함할 수 있습니다."
+  },
+  {
+    id: "db-acid-01",
+    kind: "concept",
+    topic: "데이터베이스",
+    difficulty: "기초",
+    tags: ["database", "db", "acid", "트랜잭션"],
+    prompt: "트랜잭션의 작업이 전부 수행되거나 전부 취소되어야 한다는 ACID 성질을 쓰시오.",
+    answer: "원자성(Atomicity)",
+    hint: "더 이상 나눌 수 없는 하나의 작업 단위라는 의미입니다.",
+    explanation: "원자성은 트랜잭션의 일부만 반영되는 상태를 허용하지 않고 모두 성공하거나 모두 실패하도록 보장합니다.",
+    confusion: "일관성은 제약조건 유지, 격리성은 동시 실행 간 간섭 방지, 지속성은 완료 결과 보존입니다."
+  },
+  {
+    id: "db-integrity-01",
+    kind: "choice",
+    topic: "데이터베이스",
+    difficulty: "기초",
+    tags: ["database", "db", "무결성", "외래키", "보기"],
+    prompt: "외래키 값은 참조하는 테이블의 기본키 값으로 존재해야 한다는 무결성을 고르시오.",
+    choices: ["① 개체 무결성", "② 참조 무결성", "③ 도메인 무결성", "④ 키 무결성"],
+    answer: "② 참조 무결성",
+    hint: "테이블 사이의 참조 관계를 보호합니다.",
+    explanation: "참조 무결성은 외래키가 참조 대상의 기본키 값이거나 NULL이어야 한다는 규칙입니다.",
+    confusion: "개체 무결성은 기본키가 NULL이 될 수 없다는 규칙입니다."
+  },
+  {
+    id: "db-index-01",
+    kind: "concept",
+    topic: "데이터베이스",
+    difficulty: "실전",
+    tags: ["database", "db", "인덱스", "성능"],
+    prompt: "데이터베이스 인덱스의 장점 1가지와 단점 1가지를 쓰시오.",
+    answer: "장점: 조회 속도 향상 / 단점: 저장 공간이 필요하고 INSERT·UPDATE·DELETE 성능이 저하될 수 있음",
+    hint: "책의 색인이 검색에는 유리하지만 변경할 때 함께 고쳐야 하는 것과 비슷합니다.",
+    explanation: "인덱스는 탐색 범위를 줄여 조회를 빠르게 하지만 별도 저장 공간을 사용하고 데이터 변경 때 인덱스도 갱신해야 합니다.",
+    confusion: "인덱스를 많이 만들수록 모든 작업이 빨라지는 것은 아닙니다."
+  },
+  {
+    id: "sec-injection-01",
+    kind: "choice",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "sql injection", "보기"],
+    prompt: "SQL Injection을 예방하는 가장 적절한 방법을 고르시오.",
+    choices: ["① 비밀번호를 짧게 만든다", "② 입력값을 문자열로 이어 SQL을 만든다", "③ 매개변수화 쿼리(Prepared Statement)를 사용한다", "④ 모든 오류 내용을 사용자에게 출력한다"],
+    answer: "③ 매개변수화 쿼리(Prepared Statement)를 사용한다",
+    hint: "입력 데이터를 SQL 명령 구조와 분리해야 합니다.",
+    explanation: "Prepared Statement는 SQL 구조와 사용자 값을 분리해 입력값이 명령으로 해석되는 것을 막습니다.",
+    confusion: "단순히 작은따옴표만 제거하는 방식은 우회 가능성이 있어 충분하지 않습니다."
+  },
+  {
+    id: "sec-xss-01",
+    kind: "concept",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "xss", "웹"],
+    prompt: "공격자가 웹 페이지에 악성 스크립트를 삽입해 다른 사용자의 브라우저에서 실행시키는 공격을 쓰시오.",
+    answer: "크로스 사이트 스크립팅(XSS)",
+    hint: "서버의 데이터베이스가 아니라 사용자의 브라우저에서 스크립트가 실행됩니다.",
+    explanation: "XSS는 신뢰받는 웹 페이지에 악성 스크립트를 주입해 세션 탈취나 화면 변조 등을 일으킵니다.",
+    confusion: "CSRF는 로그인된 사용자의 권한으로 원치 않는 요청을 보내게 하는 공격입니다."
+  },
+  {
+    id: "sec-hash-01",
+    kind: "choice",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "해시", "보기"],
+    prompt: "비밀번호 저장에 가장 적합한 방식의 특징을 고르시오.",
+    choices: ["① 복호화 가능한 대칭키 암호화만 사용", "② Salt와 느린 단방향 해시 함수를 사용", "③ 평문을 Base64로 변환", "④ 비밀번호 앞 네 글자만 저장"],
+    answer: "② Salt와 느린 단방향 해시 함수를 사용",
+    hint: "저장된 값에서 원래 비밀번호를 되돌릴 필요가 없습니다.",
+    explanation: "비밀번호는 Salt를 더하고 bcrypt, scrypt, Argon2 같은 느린 단방향 해시를 사용해 저장하는 것이 적절합니다.",
+    confusion: "Base64는 인코딩일 뿐 암호화나 해시가 아닙니다."
+  },
+  {
+    id: "sec-access-01",
+    kind: "choice",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "접근통제", "rbac", "보기"],
+    prompt: "사용자의 직무나 역할에 따라 권한을 부여하는 접근통제 모델을 고르시오.",
+    choices: ["① DAC", "② MAC", "③ RBAC", "④ CAPTCHA"],
+    answer: "③ RBAC",
+    hint: "Role이라는 단어가 핵심입니다.",
+    explanation: "RBAC는 사용자에게 직접 권한을 일일이 주기보다 역할에 권한을 연결하고 사용자에게 역할을 부여합니다.",
+    confusion: "DAC는 소유자 재량, MAC는 보안 등급과 정책을 기준으로 통제합니다."
+  },
+  {
+    id: "sec-crypto-01",
+    kind: "concept",
+    topic: "보안",
+    difficulty: "실전",
+    tags: ["security", "보안", "암호화", "대칭키", "비대칭키"],
+    prompt: "대칭키 암호화와 비대칭키 암호화의 핵심 차이를 키의 사용 관점에서 쓰시오.",
+    answer: "대칭키는 암호화와 복호화에 같은 키를 사용하고, 비대칭키는 공개키와 개인키 한 쌍을 사용한다.",
+    hint: "같은 키 1개인지 서로 연결된 키 2개인지 비교하세요.",
+    explanation: "대칭키는 빠르지만 키 배송 문제가 있고, 비대칭키는 공개키를 배포할 수 있어 키 교환과 전자서명에 유리합니다.",
+    confusion: "비대칭키가 항상 대칭키보다 우수한 것이 아니라 실제 통신에서는 두 방식을 함께 사용하는 경우가 많습니다."
+  },
+  {
+    id: "net-osi-01",
+    kind: "choice",
+    topic: "네트워크",
+    difficulty: "기초",
+    tags: ["network", "네트워크", "osi", "tcp", "udp", "보기"],
+    prompt: "OSI 7계층에서 TCP와 UDP가 동작하는 계층을 고르시오.",
+    choices: ["① 네트워크 계층", "② 전송 계층", "③ 세션 계층", "④ 응용 계층"],
+    answer: "② 전송 계층",
+    hint: "종단 간 연결과 포트 번호를 담당합니다.",
+    explanation: "TCP와 UDP는 종단 간 데이터 전달을 담당하는 전송 계층 프로토콜입니다.",
+    confusion: "IP는 네트워크 계층, HTTP는 응용 계층에 해당합니다."
+  },
+  {
+    id: "net-tcp-udp-01",
+    kind: "concept",
+    topic: "네트워크",
+    difficulty: "기초",
+    tags: ["network", "네트워크", "tcp", "udp"],
+    prompt: "TCP와 UDP의 차이를 연결 방식과 신뢰성 관점에서 쓰시오.",
+    answer: "TCP는 연결형이며 순서·재전송 등 신뢰성을 제공하고, UDP는 비연결형이며 신뢰성 보장 없이 빠르게 전송한다.",
+    hint: "연결 설정 여부와 오류·순서 보장 여부를 비교하세요.",
+    explanation: "TCP는 연결을 맺고 흐름·혼잡 제어와 재전송을 수행합니다. UDP는 오버헤드가 작지만 전달과 순서를 보장하지 않습니다.",
+    confusion: "UDP도 체크섬은 사용할 수 있지만 TCP와 같은 재전송·순서 보장은 제공하지 않습니다."
+  },
+  {
+    id: "os-deadlock-01",
+    kind: "concept",
+    topic: "운영체제",
+    difficulty: "실전",
+    tags: ["os", "운영체제", "deadlock", "교착상태"],
+    prompt: "교착상태 발생의 필요조건 4가지를 쓰시오.",
+    answer: "상호 배제, 점유와 대기, 비선점, 환형 대기",
+    hint: "자원 하나를 독점하고, 가진 채 기다리고, 빼앗을 수 없고, 원형으로 기다리는 상황입니다.",
+    explanation: "네 조건이 동시에 성립할 때 교착상태가 발생할 수 있습니다. 하나라도 깨면 예방할 수 있습니다.",
+    confusion: "네 조건은 교착상태가 반드시 발생한다는 충분조건이 아니라 발생 가능성을 만드는 필요조건입니다."
+  },
+  {
+    id: "os-lru-01",
+    kind: "code",
+    topic: "운영체제",
+    difficulty: "실전",
+    tags: ["os", "운영체제", "페이지교체", "lru", "계산"],
+    prompt: "페이지 프레임이 3개이고 참조열이 `1, 2, 3, 1, 4`일 때 LRU 알고리즘의 페이지 부재 횟수를 쓰시오. 처음 프레임은 비어 있다.",
+    answer: "4회",
+    hint: "1, 2, 3을 적재한 뒤 1은 적중하고, 4가 들어올 때 가장 오래 쓰지 않은 페이지를 교체합니다.",
+    explanation: "1, 2, 3에서 각각 부재 3회, 다시 1은 적중, 4는 가장 오래 사용하지 않은 2를 교체해 부재 1회가 추가됩니다.",
+    confusion: "LRU는 가장 먼저 들어온 페이지가 아니라 가장 오랫동안 사용되지 않은 페이지를 교체합니다."
+  },
+  {
+    id: "os-rr-01",
+    kind: "concept",
+    topic: "운영체제",
+    difficulty: "기초",
+    tags: ["os", "운영체제", "스케줄링", "round robin"],
+    prompt: "각 프로세스에 동일한 시간 할당량을 주고 순환하며 CPU를 배정하는 선점형 스케줄링 기법을 쓰시오.",
+    answer: "라운드 로빈(Round Robin)",
+    hint: "준비 큐를 원형으로 순회합니다.",
+    explanation: "라운드 로빈은 타임 퀀텀이 끝나면 실행 중인 프로세스를 준비 큐 뒤로 보내 다음 프로세스에 CPU를 줍니다.",
+    confusion: "타임 퀀텀이 너무 크면 FCFS와 비슷해지고 너무 작으면 문맥 교환 오버헤드가 커집니다."
+  },
+  {
+    id: "se-cohesion-01",
+    kind: "choice",
+    topic: "소프트웨어 공학",
+    difficulty: "기초",
+    tags: ["software", "설계", "응집도", "보기"],
+    prompt: "모듈 내부 요소들이 하나의 명확한 기능을 수행하기 위해 모여 있는 가장 좋은 응집도를 고르시오.",
+    choices: ["① 우연적 응집도", "② 논리적 응집도", "③ 순차적 응집도", "④ 기능적 응집도"],
+    answer: "④ 기능적 응집도",
+    hint: "모듈의 모든 요소가 단 하나의 기능에 기여합니다.",
+    explanation: "기능적 응집도는 모듈 내부 구성요소가 하나의 기능 수행에 집중하므로 가장 강하고 바람직합니다.",
+    confusion: "응집도는 높을수록 좋고, 결합도는 낮을수록 좋습니다."
+  },
+  {
+    id: "se-coupling-01",
+    kind: "choice",
+    topic: "소프트웨어 공학",
+    difficulty: "기초",
+    tags: ["software", "설계", "결합도", "보기"],
+    prompt: "모듈 사이에 필요한 단순 데이터 값만 매개변수로 전달하는 가장 바람직한 결합도를 고르시오.",
+    choices: ["① 내용 결합도", "② 공통 결합도", "③ 제어 결합도", "④ 자료 결합도"],
+    answer: "④ 자료 결합도",
+    hint: "제어 플래그나 전역 데이터가 아니라 필요한 값만 전달합니다.",
+    explanation: "자료 결합도는 모듈 간 인터페이스로 필요한 데이터만 주고받아 의존성이 낮습니다.",
+    confusion: "스탬프 결합도는 자료구조 전체를 넘기고 그중 일부만 사용하는 경우입니다."
+  },
+  {
+    id: "se-observer-01",
+    kind: "choice",
+    topic: "소프트웨어 공학",
+    difficulty: "실전",
+    tags: ["software", "설계", "디자인패턴", "observer", "보기"],
+    prompt: "한 객체의 상태가 바뀌면 의존하는 여러 객체에 자동으로 알림을 보내 갱신하도록 하는 패턴을 고르시오.",
+    choices: ["① Strategy", "② Observer", "③ Factory Method", "④ Adapter"],
+    answer: "② Observer",
+    hint: "구독자들이 주제 객체의 변화를 관찰합니다.",
+    explanation: "Observer 패턴은 주제와 관찰자 사이에 일대다 관계를 만들고 상태 변경을 자동 통지합니다.",
+    confusion: "Strategy는 교체 가능한 알고리즘을 캡슐화하고, Adapter는 호환되지 않는 인터페이스를 연결합니다."
+  },
+  {
+    id: "se-solid-01",
+    kind: "choice",
+    topic: "소프트웨어 공학",
+    difficulty: "기초",
+    tags: ["software", "설계", "solid", "보기"],
+    prompt: "기존 코드를 수정하지 않고 기능을 확장할 수 있어야 한다는 SOLID 원칙을 고르시오.",
+    choices: ["① SRP", "② OCP", "③ LSP", "④ DIP"],
+    answer: "② OCP",
+    hint: "확장에는 열려 있고 수정에는 닫혀 있어야 합니다.",
+    explanation: "OCP(Open-Closed Principle)는 소프트웨어 요소가 확장에는 열려 있고 변경에는 닫혀 있어야 한다는 원칙입니다.",
+    confusion: "SRP는 단일 책임, LSP는 리스코프 치환, DIP는 의존관계 역전 원칙입니다."
+  },
+  {
+    id: "test-boundary-01",
+    kind: "choice",
+    topic: "애플리케이션 테스트",
+    difficulty: "기초",
+    tags: ["test", "테스트", "블랙박스", "경계값", "보기"],
+    prompt: "입력 가능 범위가 1부터 100일 때 0, 1, 2, 99, 100, 101처럼 경계 주변 값을 검사하는 기법을 고르시오.",
+    choices: ["① 동등 분할", "② 경계값 분석", "③ 결정 테이블", "④ 상태 전이"],
+    answer: "② 경계값 분석",
+    hint: "오류가 자주 발생하는 범위의 끝부분에 집중합니다.",
+    explanation: "경계값 분석은 입력 영역의 최소·최대와 그 직전·직후 값을 테스트합니다.",
+    confusion: "동등 분할은 입력 영역을 같은 동작을 기대하는 유효·무효 집합으로 나눕니다."
+  },
+  {
+    id: "test-coverage-01",
+    kind: "concept",
+    topic: "애플리케이션 테스트",
+    difficulty: "실전",
+    tags: ["test", "테스트", "화이트박스", "커버리지"],
+    prompt: "결정문에서 전체 조건식의 참과 거짓 결과가 최소 한 번씩 실행되도록 하는 커버리지를 쓰시오.",
+    answer: "분기 커버리지(결정 커버리지)",
+    hint: "if 전체 결과의 True와 False를 모두 지나야 합니다.",
+    explanation: "분기 커버리지는 각 결정의 참·거짓 분기를 최소 한 번씩 수행하도록 테스트합니다.",
+    confusion: "조건 커버리지는 전체 결정 결과가 아니라 결정 안의 개별 조건이 참·거짓을 갖도록 합니다."
+  },
+  {
+    id: "uml-sequence-01",
+    kind: "concept",
+    topic: "소프트웨어 공학",
+    difficulty: "기초",
+    tags: ["software", "uml", "설계", "시퀀스"],
+    prompt: "객체 사이에 주고받는 메시지를 시간의 흐름에 따라 표현하는 UML 다이어그램을 쓰시오.",
+    answer: "시퀀스 다이어그램(Sequence Diagram)",
+    hint: "세로 방향으로 시간이 흐르고 객체의 생명선이 나타납니다.",
+    explanation: "시퀀스 다이어그램은 객체의 생명선과 메시지를 시간 순서대로 표현하는 상호작용 다이어그램입니다.",
+    confusion: "클래스 다이어그램은 정적 구조, 액티비티 다이어그램은 작업 흐름을 표현합니다."
+  },
+  {
+    id: "rest-stateless-01",
+    kind: "concept",
+    topic: "인터페이스",
+    difficulty: "기초",
+    tags: ["software", "interface", "rest", "서버"],
+    prompt: "REST의 제약조건 중 서버가 이전 요청의 클라이언트 상태를 저장하지 않고 각 요청이 필요한 정보를 모두 포함해야 한다는 성질을 쓰시오.",
+    answer: "무상태성(Stateless)",
+    hint: "각 요청을 독립적으로 처리할 수 있어야 합니다.",
+    explanation: "무상태성은 서버가 클라이언트의 세션 문맥에 의존하지 않아 확장성과 요청 처리의 독립성을 높입니다.",
+    confusion: "무상태라는 말은 데이터베이스를 사용하지 않는다는 뜻이 아니라 클라이언트 세션 상태를 요청 사이에 보관하지 않는다는 뜻입니다."
+  }
+];
