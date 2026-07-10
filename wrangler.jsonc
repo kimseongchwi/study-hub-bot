@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "study-hub-bot",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-10",
+  "vars": {
+    "SLACK_CHANNEL_ID": "C0BGCV06TQW"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

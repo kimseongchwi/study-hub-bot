@@ -1,0 +1,3 @@
+SLACK_SIGNING_SECRET=여기에_Slack_Signing_Secret
+SLACK_BOT_TOKEN=xoxb-여기에-Slack-Bot-Token
+SLACK_CHANNEL_ID=C0BGCV06TQW
