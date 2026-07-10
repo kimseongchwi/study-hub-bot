@@ -1,4 +1,6 @@
 import { ADDITIONAL_QUESTIONS } from "./question-bank/additional";
+import { EMERGING_QUESTIONS } from "./question-bank/emerging";
+import { FUNDAMENTAL_QUESTIONS } from "./question-bank/fundamentals";
 
 export type QuestionKind = "code" | "sql" | "concept" | "choice";
 export type Difficulty = "기초" | "실전" | "심화";
@@ -712,4 +714,9 @@ const CORE_QUESTIONS: StudyQuestion[] = [
   }
 ];
 
-export const QUESTIONS: StudyQuestion[] = [...CORE_QUESTIONS, ...ADDITIONAL_QUESTIONS];
+export const QUESTIONS: StudyQuestion[] = [
+  ...CORE_QUESTIONS,
+  ...ADDITIONAL_QUESTIONS,
+  ...EMERGING_QUESTIONS,
+  ...FUNDAMENTAL_QUESTIONS
+];

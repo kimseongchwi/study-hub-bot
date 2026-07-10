@@ -24,7 +24,17 @@ interface SlackThreadMessage {
   text?: string;
 }
 
-type StudyMode = "mixed" | "practical" | "concept" | "choice";
+type StudyMode =
+  | "mixed"
+  | "practical"
+  | "concept"
+  | "choice"
+  | "mock"
+  | "frequent"
+  | "terms"
+  | "calculation"
+  | "advanced"
+  | "daily";
 type StudyTopic =
   | "all"
   | "code"
@@ -37,7 +47,13 @@ type StudyTopic =
   | "network"
   | "os"
   | "test"
-  | "software";
+  | "software"
+  | "algorithm"
+  | "data_structure"
+  | "linux"
+  | "web"
+  | "api"
+  | "emerging";
 
 interface QuizCommand {
   type: "quiz";
@@ -57,7 +73,11 @@ interface HelpCommand {
   type: "help";
 }
 
-type Command = QuizCommand | RevealCommand | HelpCommand | null;
+interface SubjectsCommand {
+  type: "subjects";
+}
+
+type Command = QuizCommand | RevealCommand | HelpCommand | SubjectsCommand | null;
 
 interface SetDescriptor {
   seed: number;
@@ -84,7 +104,34 @@ const TOPIC_TAGS: Record<Exclude<StudyTopic, "all">, string[]> = {
   network: ["network", "네트워크"],
   os: ["os", "운영체제", "스케줄링"],
   test: ["test", "테스트"],
-  software: ["software", "설계", "uml"]
+  software: ["software", "설계", "uml"],
+  algorithm: ["algorithm", "알고리즘"],
+  data_structure: ["data-structure", "자료구조"],
+  linux: ["linux", "리눅스"],
+  web: ["web", "웹", "http"],
+  api: ["api", "interface", "rest"],
+  emerging: ["emerging", "신기술"]
+};
+
+const TOPIC_LABELS: Record<StudyTopic, string> = {
+  all: "종합",
+  code: "코드",
+  c: "C언어",
+  java: "Java",
+  python: "Python",
+  sql: "SQL",
+  database: "데이터베이스",
+  security: "보안",
+  network: "네트워크",
+  os: "운영체제",
+  test: "애플리케이션 테스트",
+  software: "소프트웨어 설계",
+  algorithm: "알고리즘",
+  data_structure: "자료구조",
+  linux: "리눅스",
+  web: "웹",
+  api: "API",
+  emerging: "신기술"
 };
 
 export default {
@@ -95,7 +142,7 @@ export default {
       return Response.json({
         ok: true,
         service: "study-hub-bot",
-        version: "2.1.0",
+        version: "3.0.0",
         message: "공부봇이 실행 중입니다.",
         localTest: "/test/command?text=문제줘"
       });
@@ -114,6 +161,10 @@ export default {
 
       if (command.type === "help") {
         return textResponse(buildHelpMessage());
+      }
+
+      if (command.type === "subjects") {
+        return textResponse(buildSubjectsMessage());
       }
 
       if (command.type === "reveal") {
@@ -184,6 +235,8 @@ async function handleSlackEvent(payload: SlackEventPayload, env: Env): Promise<v
 
   if (command.type === "help") {
     message = buildHelpMessage();
+  } else if (command.type === "subjects") {
+    message = buildSubjectsMessage();
   } else if (command.type === "quiz") {
     message = buildQuizMessage(createDescriptor(command));
   } else {
@@ -200,10 +253,14 @@ export function parseCommand(input: string): Command {
     return { type: "help" };
   }
 
-  const numberedReveal = text.match(/^(\d+)\s*번\s*(정답|힌트|해설)$/);
+  if (/^(과목|과목표|분야)$/.test(text)) {
+    return { type: "subjects" };
+  }
+
+  const numberedReveal = text.match(/^(\d+)\s*번\s*(정답|힌트|해설|풀이)$/);
 
   if (numberedReveal) {
-    const actionMap = { 정답: "answer", 힌트: "hint", 해설: "explain" } as const;
+    const actionMap = { 정답: "answer", 힌트: "hint", 해설: "explain", 풀이: "explain" } as const;
     return {
       type: "reveal",
       action: actionMap[numberedReveal[2] as keyof typeof actionMap],
@@ -215,8 +272,17 @@ export function parseCommand(input: string): Command {
     return { type: "reveal", action: "answer", target: "all" };
   }
 
-  if (/^(해설|해설줘|전체\s*해설)$/.test(text)) {
+  if (/^(해설|해설줘|풀이|풀이줘|전체\s*(해설|풀이))$/.test(text)) {
     return { type: "reveal", action: "explain", target: "all" };
+  }
+
+  const mockMatch = text.match(/^모의고사(?:\s*(\d+)\s*개)?$/);
+  if (mockMatch) {
+    return { type: "quiz", count: clampQuestionCount(mockMatch[1] ? Number(mockMatch[1]) : 20), mode: "mock", topic: "all" };
+  }
+
+  if (/^오늘\s*(문제)?$/.test(text)) {
+    return { type: "quiz", count: 10, mode: "daily", topic: "all" };
   }
 
   if (/^문제\s*줘?$/.test(text)) {
@@ -238,6 +304,7 @@ export function parseCommand(input: string): Command {
 
   if (topicMatch) {
     const normalized = normalizeTopic(topicMatch[1]);
+    if (!normalized) return null;
     return {
       type: "quiz",
       count: clampQuestionCount(topicMatch[2] ? Number(topicMatch[2]) : 10),
@@ -245,10 +312,21 @@ export function parseCommand(input: string): Command {
     };
   }
 
+  const shortMatch = text.match(/^(.+?)(?:\s*(\d+)\s*개)?$/);
+  if (shortMatch) {
+    const normalized = normalizeTopic(shortMatch[1]);
+    if (!normalized) return null;
+    return {
+      type: "quiz",
+      count: clampQuestionCount(shortMatch[2] ? Number(shortMatch[2]) : 10),
+      ...normalized
+    };
+  }
+
   return null;
 }
 
-function normalizeTopic(raw: string): Pick<QuizCommand, "mode" | "topic" | "label"> {
+function normalizeTopic(raw: string): Pick<QuizCommand, "mode" | "topic" | "label"> | null {
   const value = raw.trim().toLowerCase().replace(/\s+/g, "");
 
   if (["종합", "랜덤", "혼합"].includes(value)) {
@@ -262,6 +340,18 @@ function normalizeTopic(raw: string): Pick<QuizCommand, "mode" | "topic" | "labe
   }
   if (["보기", "선택", "객관식"].includes(value)) {
     return { mode: "choice", topic: "all", label: raw.trim() };
+  }
+  if (["빈출", "자주나오는"].includes(value)) {
+    return { mode: "frequent", topic: "all", label: "빈출" };
+  }
+  if (["용어", "단답", "단답형"].includes(value)) {
+    return { mode: "terms", topic: "all", label: "용어" };
+  }
+  if (["계산", "계산형"].includes(value)) {
+    return { mode: "calculation", topic: "all", label: "계산" };
+  }
+  if (["심화", "고난도", "어려운"].includes(value)) {
+    return { mode: "advanced", topic: "all", label: "심화" };
   }
   if (["코드", "코딩", "프로그래밍"].includes(value)) {
     return { mode: "practical", topic: "code", label: raw.trim() };
@@ -296,20 +386,43 @@ function normalizeTopic(raw: string): Pick<QuizCommand, "mode" | "topic" | "labe
   if (["소프트웨어공학", "설계", "uml", "디자인패턴"].includes(value)) {
     return { mode: "mixed", topic: "software", label: raw.trim() };
   }
+  if (["알고리즘", "알고리듬"].includes(value)) {
+    return { mode: "mixed", topic: "algorithm", label: "알고리즘" };
+  }
+  if (["자료구조", "자료 구조"].includes(value)) {
+    return { mode: "mixed", topic: "data_structure", label: "자료구조" };
+  }
+  if (["리눅스", "linux"].includes(value)) {
+    return { mode: "mixed", topic: "linux", label: "리눅스" };
+  }
+  if (["웹", "web", "http"].includes(value)) {
+    return { mode: "mixed", topic: "web", label: "웹" };
+  }
+  if (["api", "인터페이스", "rest"].includes(value)) {
+    return { mode: "mixed", topic: "api", label: "API" };
+  }
+  if (["신기술", "최신기술", "최신"].includes(value)) {
+    return { mode: "mixed", topic: "emerging", label: "신기술" };
+  }
 
-  return { mode: "mixed", topic: "all", label: raw.trim() };
+  return null;
 }
 
 function clampQuestionCount(count: number): number {
   if (!Number.isFinite(count)) {
     return 10;
   }
-  return Math.min(10, Math.max(1, Math.trunc(count)));
+  return Math.min(20, Math.max(1, Math.trunc(count)));
 }
 
 function createDescriptor(command: QuizCommand): SetDescriptor {
   const values = new Uint32Array(1);
-  crypto.getRandomValues(values);
+  if (command.mode === "daily") {
+    const kstDay = Math.floor((Date.now() + 9 * 60 * 60 * 1000) / 86_400_000);
+    values[0] = Math.imul(kstDay, 2654435761) >>> 0;
+  } else {
+    crypto.getRandomValues(values);
+  }
   return {
     seed: values[0],
     count: command.count,
@@ -320,6 +433,15 @@ function createDescriptor(command: QuizCommand): SetDescriptor {
 
 function buildQuizMessage(descriptor: SetDescriptor): string {
   const questions = selectQuestions(descriptor);
+  const titleMap: Partial<Record<StudyMode, string>> = {
+    mock: "정보처리기사 실기 모의고사",
+    frequent: "빈출 집중 문제",
+    terms: "용어·단답 집중 문제",
+    calculation: "계산형 집중 문제",
+    advanced: "심화 문제",
+    daily: "오늘의 문제"
+  };
+  const title = descriptor.topic === "all" ? (titleMap[descriptor.mode] ?? "정보처리기사 실기·복습 혼합 문제") : `${TOPIC_LABELS[descriptor.topic]} 집중 문제`;
   const questionText = questions
     .map((question, index) => {
       const choices = question.choices ? `\n${question.choices.join("\n")}` : "";
@@ -328,7 +450,7 @@ function buildQuizMessage(descriptor: SetDescriptor): string {
     .join("\n\n");
 
   return [
-    ":books: *정보처리기사 실기·복습 혼합 문제*",
+    `:books: *${title}*`,
     "_최근 출제 흐름을 반영한 새 문제이며 실제 기출문장을 복제하지 않습니다._",
     "",
     questionText,
@@ -350,7 +472,26 @@ function selectQuestions(descriptor: SetDescriptor): StudyQuestion[] {
     return selected.slice(0, descriptor.count);
   }
 
-  if (descriptor.mode === "choice") {
+  if (descriptor.mode === "terms") {
+    takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.kind === "concept"), random), descriptor.count);
+  } else if (descriptor.mode === "calculation") {
+    takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.tags.includes("calculation")), random), descriptor.count);
+  } else if (descriptor.mode === "advanced") {
+    takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.difficulty === "심화"), random), descriptor.count);
+  } else if (descriptor.mode === "frequent") {
+    const frequentPool = QUESTIONS.filter((question) =>
+      question.tags.some((tag) => ["code", "sql", "database", "security", "os", "test"].includes(tag))
+    );
+    const codeTarget = Math.round(descriptor.count * 0.4);
+    const dataTarget = Math.round(descriptor.count * 0.2);
+    takeUnique(selected, shuffled(frequentPool.filter((question) => question.kind === "code"), random), codeTarget);
+    takeUnique(
+      selected,
+      shuffled(frequentPool.filter((question) => question.kind === "sql" || question.tags.includes("database")), random),
+      codeTarget + dataTarget
+    );
+    takeUnique(selected, shuffled(frequentPool, random), descriptor.count);
+  } else if (descriptor.mode === "choice") {
     takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.kind === "choice"), random), descriptor.count);
   } else if (descriptor.mode === "concept") {
     takeUnique(
@@ -398,6 +539,14 @@ function filterByMode(questions: StudyQuestion[], mode: StudyMode): StudyQuestio
   if (mode === "choice") return questions.filter((question) => question.kind === "choice");
   if (mode === "concept") return questions.filter((question) => question.kind === "concept" || question.kind === "choice");
   if (mode === "practical") return questions.filter((question) => question.kind === "code" || question.kind === "sql");
+  if (mode === "terms") return questions.filter((question) => question.kind === "concept");
+  if (mode === "calculation") return questions.filter((question) => question.tags.includes("calculation"));
+  if (mode === "advanced") return questions.filter((question) => question.difficulty === "심화");
+  if (mode === "frequent") {
+    return questions.filter((question) =>
+      question.tags.some((tag) => ["code", "sql", "database", "security", "os", "test"].includes(tag))
+    );
+  }
   return questions;
 }
 
@@ -435,11 +584,13 @@ function createSeededRandom(seed: number): () => number {
 }
 
 function encodeSet(descriptor: SetDescriptor): string {
-  return ["IQ2", descriptor.seed.toString(36), descriptor.count, descriptor.mode, descriptor.topic].join("-");
+  return ["IQ3", descriptor.seed.toString(36), descriptor.count, descriptor.mode, descriptor.topic].join("-");
 }
 
 function decodeSet(token: string): SetDescriptor | null {
-  const match = token.match(/^IQ2-([a-z0-9]+)-(\d+)-(mixed|practical|concept|choice)-([a-z]+)$/i);
+  const match = token.match(
+    /^IQ(?:2|3)-([a-z0-9]+)-(\d+)-(mixed|practical|concept|choice|mock|frequent|terms|calculation|advanced|daily)-([a-z_]+)$/i
+  );
   if (!match) return null;
 
   const seed = Number.parseInt(match[1], 36);
@@ -535,7 +686,7 @@ async function findSetInThread(botToken: string, channel: string, threadTs: stri
   }
 
   for (const message of [...(result.messages ?? [])].reverse()) {
-    const token = message.text?.match(/세트 코드:\s*`?(IQ2-[a-z0-9-]+)`?/i)?.[1];
+    const token = message.text?.match(/세트 코드:\s*`?(IQ[23]-[a-z0-9_-]+)`?/i)?.[1];
     if (token) return decodeSet(token);
   }
   return null;
@@ -543,27 +694,43 @@ async function findSetInThread(botToken: string, channel: string, threadTs: stri
 
 function buildHelpMessage(): string {
   return [
-    ":blue_book: *공부봇, 이렇게 사용하세요*",
-    "원하는 문제를 말하면 바로 출제해 드려요.",
+    ":blue_book: *공부봇 사용법*",
+    "개수를 생략하면 10문제가 출제됩니다.",
     "",
-    "*바로 시작*",
-    "`문제줘`  기본 혼합 10문제",
-    "`문제 5개 줘`  원하는 개수만 출제",
-    "`실전 문제줘`  코드·SQL 중심",
-    "`개념 문제줘`  단답·보기 중심",
+    "*문제 받기*",
+    "`문제`  `문제 5개`",
+    "`실전`  `개념`  `신기술`  `모의고사`",
+    "`빈출`  `코드`  `용어`  `계산`  `심화`",
+    "`오늘 문제`  매일 같은 10문제",
     "",
-    "*과목을 골라서*",
-    "`C언어 문제줘`  `Java 문제줘`  `Python 문제줘`",
-    "`SQL 문제줘`  `DB 문제줘`  `보안 문제줘`",
-    "`네트워크 문제줘`  `스케줄링 문제줘`",
+    "`과목`  출제 가능한 전체 분야 보기",
     "",
     "*문제를 받은 뒤 같은 스레드에서*",
-    "`3번 힌트`  힌트만 보기",
-    "`3번 정답`  정답만 확인",
-    "`3번 해설`  풀이와 혼동 포인트 확인",
-    "`정답줘`  전체 정답 · `전체 해설`  전체 풀이",
+    "`3번 힌트`  `3번 정답`  `3번 풀이`",
+    "`전체 정답`  `전체 풀이`"
+  ].join("\n");
+}
+
+function buildSubjectsMessage(): string {
+  return [
+    ":books: *출제 가능한 과목*",
     "",
-    "> 예시: `SQL 문제 5개 줘`"
+    "*프로그래밍*",
+    "`C`  `자바`  `파이썬`  `알고리즘`  `자료구조`",
+    "",
+    "*데이터베이스*",
+    "`SQL`  `DB`",
+    "",
+    "*시스템*",
+    "`운영체제`  `네트워크`  `리눅스`",
+    "",
+    "*개발*",
+    "`설계`  `테스트`  `웹`  `API`",
+    "",
+    "*기타*",
+    "`보안`  `신기술`",
+    "",
+    "> 각 과목 뒤에 개수를 붙일 수 있습니다. 예: `자료구조 5개`, `신기술 10개`"
   ].join("\n");
 }
 
