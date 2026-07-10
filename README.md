@@ -153,3 +153,7 @@ npm run deploy
 2. 오답 유형별 재출제
 3. Cloudflare Workers AI를 이용한 추가 변형 문제 생성
 4. Notion 오답노트 자동 저장
+
+## 자동 배포
+
+`main` 브랜치에 커밋이 올라오면 Cloudflare Workers가 자동으로 빌드하고 배포합니다.
