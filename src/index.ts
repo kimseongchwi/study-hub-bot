@@ -3,7 +3,7 @@ import { QUESTIONS, type QuestionKind, type StudyQuestion } from "./questions";
 export interface Env {
   SLACK_SIGNING_SECRET: string;
   SLACK_BOT_TOKEN: string;
-  SLACK_CHANNEL_ID?: string;
+  SLACK_CHANNEL_ID: string;
 }
 
 interface SlackEventPayload {
@@ -137,18 +137,23 @@ const TOPIC_LABELS: Record<StudyTopic, string> = {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const isLocalRequest = url.hostname === "localhost" || url.hostname === "127.0.0.1";
 
     if (request.method === "GET" && url.pathname === "/") {
       return Response.json({
         ok: true,
         service: "study-hub-bot",
-        version: "3.0.0",
+        version: "3.1.0",
         message: "공부봇이 실행 중입니다.",
-        localTest: "/test/command?text=문제줘"
+        ...(isLocalRequest ? { localTest: "/test/command?text=문제줘" } : {})
       });
     }
 
     if (request.method === "GET" && url.pathname === "/test/command") {
+      if (!isLocalRequest) {
+        return new Response("Not Found", { status: 404 });
+      }
+
       const input = url.searchParams.get("text")?.trim() || "문제줘";
       const command = parseCommand(input);
 
@@ -220,7 +225,7 @@ async function handleSlackEvent(payload: SlackEventPayload, env: Env): Promise<v
     return;
   }
 
-  if (env.SLACK_CHANNEL_ID && event.channel !== env.SLACK_CHANNEL_ID) {
+  if (event.channel !== env.SLACK_CHANNEL_ID) {
     return;
   }
 

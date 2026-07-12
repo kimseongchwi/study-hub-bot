@@ -82,7 +82,7 @@ npm run dev
 }
 ```
 
-다음 주소를 브라우저에서 열면 Slack 연결 전에도 `문제줘` 명령을 로컬에서 시험할 수 있습니다.
+다음 주소를 브라우저에서 열면 Slack 연결 전에도 `문제줘` 명령을 로컬에서 시험할 수 있습니다. 이 테스트 경로는 보안을 위해 로컬 환경에서만 동작하며 배포된 Worker에서는 `404 Not Found`를 반환합니다.
 
 ```text
 http://localhost:8787/test/command?text=문제줘
@@ -114,9 +114,10 @@ npm run deploy
 ```bash
 npx wrangler secret put SLACK_SIGNING_SECRET
 npx wrangler secret put SLACK_BOT_TOKEN
+npx wrangler secret put SLACK_CHANNEL_ID
 ```
 
-`#정보처리기사` 채널 ID `C0BGCV06TQW`는 `wrangler.jsonc`에 미리 설정되어 있습니다.
+`SLACK_CHANNEL_ID`에는 공부봇이 응답할 Slack 채널의 ID를 입력합니다. 실제 토큰과 채널 ID는 `wrangler.jsonc`, README 또는 GitHub에 기록하지 않습니다.
 
 ## 6. Slack 앱 설정
 
@@ -167,3 +168,10 @@ npm run deploy
 ## 자동 배포
 
 `main` 브랜치에 커밋이 올라오면 Cloudflare Workers가 자동으로 빌드하고 배포합니다.
+
+## 보안
+
+- `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID`는 Cloudflare Secrets로만 관리합니다.
+- 로컬 비밀값은 `.dev.vars`에 저장하며 Git에 커밋하지 않습니다.
+- 배포된 Worker의 `/test/command` 경로는 외부에서 사용할 수 없습니다.
+- 토큰이 로그, 화면 공유 또는 저장소에 노출되면 즉시 Slack에서 폐기하고 Cloudflare 비밀값을 교체합니다.
