@@ -1,0 +1,143 @@
+import type { StudyQuestion } from "../types";
+
+export const SOFTWARE_ENGINEERING_TEST_QUESTIONS: StudyQuestion[] = [
+  {
+    id: "se-cohesion-01",
+    kind: "choice",
+    topic: "소프트웨어 공학",
+    difficulty: "기초",
+    tags: ["software", "설계", "응집도", "보기"],
+    prompt: "모듈 내부 요소들이 하나의 명확한 기능을 수행하기 위해 모여 있는 가장 좋은 응집도를 고르시오.",
+    choices: ["① 우연적 응집도", "② 논리적 응집도", "③ 순차적 응집도", "④ 기능적 응집도"],
+    answer: "④ 기능적 응집도",
+    hint: "모듈의 모든 요소가 단 하나의 기능에 기여합니다.",
+    explanation: "기능적 응집도는 모듈 내부 구성요소가 하나의 기능 수행에 집중하므로 가장 강하고 바람직합니다.",
+    confusion: "응집도는 높을수록 좋고, 결합도는 낮을수록 좋습니다."
+  },
+  {
+    id: "se-coupling-01",
+    kind: "choice",
+    topic: "소프트웨어 공학",
+    difficulty: "기초",
+    tags: ["software", "설계", "결합도", "보기"],
+    prompt: "모듈 사이에 필요한 단순 데이터 값만 매개변수로 전달하는 가장 바람직한 결합도를 고르시오.",
+    choices: ["① 내용 결합도", "② 공통 결합도", "③ 제어 결합도", "④ 자료 결합도"],
+    answer: "④ 자료 결합도",
+    hint: "제어 플래그나 전역 데이터가 아니라 필요한 값만 전달합니다.",
+    explanation: "자료 결합도는 모듈 간 인터페이스로 필요한 데이터만 주고받아 의존성이 낮습니다.",
+    confusion: "스탬프 결합도는 자료구조 전체를 넘기고 그중 일부만 사용하는 경우입니다."
+  },
+  {
+    id: "se-observer-01",
+    kind: "choice",
+    topic: "소프트웨어 공학",
+    difficulty: "실전",
+    tags: ["software", "설계", "디자인패턴", "observer", "보기"],
+    prompt: "한 객체의 상태가 바뀌면 의존하는 여러 객체에 자동으로 알림을 보내 갱신하도록 하는 패턴을 고르시오.",
+    choices: ["① Strategy", "② Observer", "③ Factory Method", "④ Adapter"],
+    answer: "② Observer",
+    hint: "구독자들이 주제 객체의 변화를 관찰합니다.",
+    explanation: "Observer 패턴은 주제와 관찰자 사이에 일대다 관계를 만들고 상태 변경을 자동 통지합니다.",
+    confusion: "Strategy는 교체 가능한 알고리즘을 캡슐화하고, Adapter는 호환되지 않는 인터페이스를 연결합니다."
+  },
+  {
+    id: "se-solid-01",
+    kind: "choice",
+    topic: "소프트웨어 공학",
+    difficulty: "기초",
+    tags: ["software", "설계", "solid", "보기"],
+    prompt: "기존 코드를 수정하지 않고 기능을 확장할 수 있어야 한다는 SOLID 원칙을 고르시오.",
+    choices: ["① SRP", "② OCP", "③ LSP", "④ DIP"],
+    answer: "② OCP",
+    hint: "확장에는 열려 있고 수정에는 닫혀 있어야 합니다.",
+    explanation: "OCP(Open-Closed Principle)는 소프트웨어 요소가 확장에는 열려 있고 변경에는 닫혀 있어야 한다는 원칙입니다.",
+    confusion: "SRP는 단일 책임, LSP는 리스코프 치환, DIP는 의존관계 역전 원칙입니다."
+  },
+  {
+    id: "test-boundary-01",
+    kind: "choice",
+    topic: "애플리케이션 테스트",
+    difficulty: "기초",
+    tags: ["test", "테스트", "블랙박스", "경계값", "보기"],
+    prompt: "입력 가능 범위가 1부터 100일 때 0, 1, 2, 99, 100, 101처럼 경계 주변 값을 검사하는 기법을 고르시오.",
+    choices: ["① 동등 분할", "② 경계값 분석", "③ 결정 테이블", "④ 상태 전이"],
+    answer: "② 경계값 분석",
+    hint: "오류가 자주 발생하는 범위의 끝부분에 집중합니다.",
+    explanation: "경계값 분석은 입력 영역의 최소·최대와 그 직전·직후 값을 테스트합니다.",
+    confusion: "동등 분할은 입력 영역을 같은 동작을 기대하는 유효·무효 집합으로 나눕니다."
+  },
+  {
+    id: "test-coverage-01",
+    kind: "concept",
+    topic: "애플리케이션 테스트",
+    difficulty: "실전",
+    tags: ["test", "테스트", "화이트박스", "커버리지"],
+    prompt: "결정문에서 전체 조건식의 참과 거짓 결과가 최소 한 번씩 실행되도록 하는 커버리지를 쓰시오.",
+    answer: "분기 커버리지(결정 커버리지)",
+    hint: "if 전체 결과의 True와 False를 모두 지나야 합니다.",
+    explanation: "분기 커버리지는 각 결정의 참·거짓 분기를 최소 한 번씩 수행하도록 테스트합니다.",
+    confusion: "조건 커버리지는 전체 결정 결과가 아니라 결정 안의 개별 조건이 참·거짓을 갖도록 합니다."
+  },
+  {
+    id: "uml-sequence-01",
+    kind: "concept",
+    topic: "소프트웨어 공학",
+    difficulty: "기초",
+    tags: ["software", "uml", "설계", "시퀀스"],
+    prompt: "객체 사이에 주고받는 메시지를 시간의 흐름에 따라 표현하는 UML 다이어그램을 쓰시오.",
+    answer: "시퀀스 다이어그램(Sequence Diagram)",
+    hint: "세로 방향으로 시간이 흐르고 객체의 생명선이 나타납니다.",
+    explanation: "시퀀스 다이어그램은 객체의 생명선과 메시지를 시간 순서대로 표현하는 상호작용 다이어그램입니다.",
+    confusion: "클래스 다이어그램은 정적 구조, 액티비티 다이어그램은 작업 흐름을 표현합니다."
+  },
+  {
+    id: "test-decision-02",
+    kind: "choice",
+    topic: "애플리케이션 테스트",
+    difficulty: "실전",
+    tags: ["test", "테스트", "coverage", "whitebox"],
+    prompt: "각 조건문의 전체 결과가 참과 거짓을 최소 한 번씩 갖도록 테스트하는 커버리지를 고르시오.",
+    choices: ["① 문장 커버리지", "② 결정 커버리지", "③ 조건 커버리지", "④ 변경 조건/결정 커버리지"],
+    answer: "② 결정 커버리지",
+    hint: "분기 전체 결과의 두 방향을 실행합니다.",
+    explanation: "결정 커버리지는 각 결정식의 참·거짓 결과를 최소 한 번씩 수행하도록 테스트합니다.",
+    confusion: "조건 커버리지는 결정식 내부의 개별 조건이 참·거짓을 갖는지 확인합니다."
+  },
+  {
+    id: "se-factory-01",
+    kind: "choice",
+    topic: "소프트웨어 공학",
+    difficulty: "실전",
+    tags: ["software", "설계", "디자인패턴", "factory"],
+    prompt: "객체 생성 인터페이스는 상위 타입에 두고 실제 생성할 클래스의 결정은 하위 클래스에 맡기는 패턴을 고르시오.",
+    choices: ["① Factory Method", "② Observer", "③ Adapter", "④ Command"],
+    answer: "① Factory Method",
+    hint: "생성 책임을 서브클래스의 메서드로 위임합니다.",
+    explanation: "Factory Method는 객체 생성 메서드를 추상화하고 하위 클래스가 구체 객체의 생성 방식을 결정하게 합니다.",
+    confusion: "Abstract Factory는 관련 객체군을 생성하는 인터페이스를 제공하는 별도의 생성 패턴입니다."
+  },
+  {
+    id: "uml-activity-01",
+    kind: "concept",
+    topic: "소프트웨어 공학",
+    difficulty: "기초",
+    tags: ["software", "설계", "uml", "activity"],
+    prompt: "업무 처리나 알고리즘의 제어 흐름을 시작·종료·분기·병렬 처리 등으로 표현하는 UML 다이어그램을 쓰시오.",
+    answer: "액티비티 다이어그램(Activity Diagram)",
+    hint: "순서도와 비슷하게 활동의 흐름을 표현합니다.",
+    explanation: "액티비티 다이어그램은 활동과 전이, 조건 분기, 병렬 흐름을 사용해 프로세스의 동적 흐름을 나타냅니다.",
+    confusion: "시퀀스 다이어그램은 객체 사이 메시지의 시간 순서를 중심으로 표현합니다."
+  },
+  {
+    id: "se-cohesion-order-02",
+    kind: "concept",
+    topic: "소프트웨어 공학",
+    difficulty: "실전",
+    tags: ["software", "설계", "응집도", "모듈"],
+    prompt: "모듈 응집도 중 가장 강한 것과 가장 약한 것을 각각 쓰시오.",
+    answer: "가장 강함: 기능적 응집도, 가장 약함: 우연적 응집도",
+    hint: "하나의 명확한 기능만 수행하는 경우와 관련 없는 기능이 모인 경우를 비교하세요.",
+    explanation: "기능적 응집도는 모듈의 모든 요소가 하나의 기능 수행에 기여해 가장 강하고, 우연적 응집도는 관련 없는 요소가 모여 가장 약합니다.",
+    confusion: "좋은 설계는 응집도를 높이고 모듈 사이 결합도를 낮추는 방향입니다."
+  }
+];

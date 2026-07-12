@@ -10,7 +10,7 @@ Slack에서 정보처리기사 실기와 개념 복습 문제를 풀 수 있는 
 
 ```text
 src/question-bank/
-├─ 정보처리기사/
+├─ 정보처리기사/  # 프로그래밍, DB·SQL, 설계·테스트, 시스템, 보안, 신기술 등
 ├─ SQLD/
 ├─ index.ts
 └─ types.ts

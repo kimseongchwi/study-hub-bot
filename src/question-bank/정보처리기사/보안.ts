@@ -1,0 +1,130 @@
+import type { StudyQuestion } from "../types";
+
+export const SECURITY_QUESTIONS: StudyQuestion[] = [
+  {
+    id: "sec-injection-01",
+    kind: "choice",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "sql injection", "보기"],
+    prompt: "SQL Injection을 예방하는 가장 적절한 방법을 고르시오.",
+    choices: ["① 비밀번호를 짧게 만든다", "② 입력값을 문자열로 이어 SQL을 만든다", "③ 매개변수화 쿼리(Prepared Statement)를 사용한다", "④ 모든 오류 내용을 사용자에게 출력한다"],
+    answer: "③ 매개변수화 쿼리(Prepared Statement)를 사용한다",
+    hint: "입력 데이터를 SQL 명령 구조와 분리해야 합니다.",
+    explanation: "Prepared Statement는 SQL 구조와 사용자 값을 분리해 입력값이 명령으로 해석되는 것을 막습니다.",
+    confusion: "단순히 작은따옴표만 제거하는 방식은 우회 가능성이 있어 충분하지 않습니다."
+  },
+  {
+    id: "sec-xss-01",
+    kind: "concept",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "xss", "웹"],
+    prompt: "공격자가 웹 페이지에 악성 스크립트를 삽입해 다른 사용자의 브라우저에서 실행시키는 공격을 쓰시오.",
+    answer: "크로스 사이트 스크립팅(XSS)",
+    hint: "서버의 데이터베이스가 아니라 사용자의 브라우저에서 스크립트가 실행됩니다.",
+    explanation: "XSS는 신뢰받는 웹 페이지에 악성 스크립트를 주입해 세션 탈취나 화면 변조 등을 일으킵니다.",
+    confusion: "CSRF는 로그인된 사용자의 권한으로 원치 않는 요청을 보내게 하는 공격입니다."
+  },
+  {
+    id: "sec-hash-01",
+    kind: "choice",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "해시", "보기"],
+    prompt: "비밀번호 저장에 가장 적합한 방식의 특징을 고르시오.",
+    choices: ["① 복호화 가능한 대칭키 암호화만 사용", "② Salt와 느린 단방향 해시 함수를 사용", "③ 평문을 Base64로 변환", "④ 비밀번호 앞 네 글자만 저장"],
+    answer: "② Salt와 느린 단방향 해시 함수를 사용",
+    hint: "저장된 값에서 원래 비밀번호를 되돌릴 필요가 없습니다.",
+    explanation: "비밀번호는 Salt를 더하고 bcrypt, scrypt, Argon2 같은 느린 단방향 해시를 사용해 저장하는 것이 적절합니다.",
+    confusion: "Base64는 인코딩일 뿐 암호화나 해시가 아닙니다."
+  },
+  {
+    id: "sec-access-01",
+    kind: "choice",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "접근통제", "rbac", "보기"],
+    prompt: "사용자의 직무나 역할에 따라 권한을 부여하는 접근통제 모델을 고르시오.",
+    choices: ["① DAC", "② MAC", "③ RBAC", "④ CAPTCHA"],
+    answer: "③ RBAC",
+    hint: "Role이라는 단어가 핵심입니다.",
+    explanation: "RBAC는 사용자에게 직접 권한을 일일이 주기보다 역할에 권한을 연결하고 사용자에게 역할을 부여합니다.",
+    confusion: "DAC는 소유자 재량, MAC는 보안 등급과 정책을 기준으로 통제합니다."
+  },
+  {
+    id: "sec-crypto-01",
+    kind: "concept",
+    topic: "보안",
+    difficulty: "실전",
+    tags: ["security", "보안", "암호화", "대칭키", "비대칭키"],
+    prompt: "대칭키 암호화와 비대칭키 암호화의 핵심 차이를 키의 사용 관점에서 쓰시오.",
+    answer: "대칭키는 암호화와 복호화에 같은 키를 사용하고, 비대칭키는 공개키와 개인키 한 쌍을 사용한다.",
+    hint: "같은 키 1개인지 서로 연결된 키 2개인지 비교하세요.",
+    explanation: "대칭키는 빠르지만 키 배송 문제가 있고, 비대칭키는 공개키를 배포할 수 있어 키 교환과 전자서명에 유리합니다.",
+    confusion: "비대칭키가 항상 대칭키보다 우수한 것이 아니라 실제 통신에서는 두 방식을 함께 사용하는 경우가 많습니다."
+  },
+  {
+    id: "sec-csrf-01",
+    kind: "choice",
+    topic: "보안",
+    difficulty: "실전",
+    tags: ["security", "보안", "csrf", "웹"],
+    prompt: "로그인된 사용자의 권한을 이용해 사용자가 의도하지 않은 요청을 보내게 하는 공격을 고르시오.",
+    choices: ["① CSRF", "② XSS", "③ SQL Injection", "④ Sniffing"],
+    answer: "① CSRF",
+    hint: "위조된 요청이 사용자의 인증 상태를 악용합니다.",
+    explanation: "CSRF는 공격자가 사용자의 브라우저로 인증된 사이트에 원치 않는 요청을 보내게 합니다.",
+    confusion: "XSS는 신뢰한 사이트에 악성 스크립트를 삽입해 사용자의 브라우저에서 실행시키는 공격입니다."
+  },
+  {
+    id: "sec-salt-01",
+    kind: "concept",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "hash", "salt"],
+    prompt: "비밀번호 해시 전에 사용자별 임의 값을 추가하여 같은 비밀번호도 다른 해시가 나오게 하는 값을 쓰시오.",
+    answer: "솔트(Salt)",
+    hint: "레인보우 테이블 공격을 어렵게 만드는 임의 값입니다.",
+    explanation: "솔트는 비밀번호와 함께 해시되어 동일한 비밀번호의 해시를 서로 다르게 만들고 사전 계산 공격을 어렵게 합니다.",
+    confusion: "솔트는 숨겨야 하는 암호키라기보다 사용자별로 충분히 무작위인 값이어야 합니다."
+  },
+  {
+    id: "sec-asymmetric-01",
+    kind: "choice",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "암호", "공개키"],
+    prompt: "공개키 암호 방식의 특징으로 가장 알맞은 것을 고르시오.",
+    choices: ["① 암호화와 복호화에 서로 다른 키 쌍을 사용한다", "② 항상 대칭키보다 빠르다", "③ 키 배송 문제가 전혀 없다", "④ 해시와 동일한 단방향 함수이다"],
+    answer: "① 암호화와 복호화에 서로 다른 키 쌍을 사용한다",
+    hint: "공개키와 개인키의 관계를 떠올리세요.",
+    explanation: "공개키 방식은 수학적으로 연결된 공개키와 개인키를 사용해 암호화·복호화 또는 서명·검증을 수행합니다.",
+    confusion: "대용량 데이터는 빠른 대칭키로 처리하고 공개키 방식은 주로 키 교환과 서명에 함께 사용합니다."
+  },
+  {
+    id: "sec-prepared-01",
+    kind: "concept",
+    topic: "보안",
+    difficulty: "실전",
+    tags: ["security", "보안", "sql injection", "secure coding"],
+    prompt: "SQL Injection을 막기 위해 SQL 구조와 사용자 입력값을 분리하여 전달하는 대표적인 기법을 쓰시오.",
+    answer: "Prepared Statement(매개변수화 쿼리)",
+    hint: "입력값을 SQL 문자열에 직접 이어 붙이지 않습니다.",
+    explanation: "Prepared Statement는 쿼리 구조를 먼저 확정하고 값은 매개변수로 바인딩하여 입력이 SQL 문법으로 해석되지 않게 합니다.",
+    confusion: "입력 길이 제한이나 특수문자 제거만으로는 다양한 우회 공격을 완전히 막기 어렵습니다."
+  },
+  {
+    id: "sec-least-privilege-01",
+    kind: "choice",
+    topic: "보안",
+    difficulty: "기초",
+    tags: ["security", "보안", "접근통제", "권한"],
+    prompt: "사용자와 프로세스에 업무 수행에 필요한 최소 권한만 부여하는 원칙을 고르시오.",
+    choices: ["① 최소 권한 원칙", "② 완전 중재 원칙", "③ 개방 설계 원칙", "④ 직무 순환 원칙"],
+    answer: "① 최소 권한 원칙",
+    hint: "침해 사고가 나더라도 피해 범위를 줄이는 권한 부여 방식입니다.",
+    explanation: "최소 권한 원칙은 필요한 작업 범위에 한정해 권한을 주어 오용과 침해의 영향을 줄입니다.",
+    confusion: "직무 분리는 한 사람이 상충하는 중요 업무를 모두 수행하지 못하게 하는 통제입니다."
+  }
+];
