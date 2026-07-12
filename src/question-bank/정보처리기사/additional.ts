@@ -1,4 +1,4 @@
-import type { StudyQuestion } from "../questions";
+import type { StudyQuestion } from "../types";
 
 // 핵심 문제와 겹치지 않도록 세부 문법, 계산, 비교 개념을 보강한 확장 문제은행이다.
 // 실제 기출문장을 복제하지 않고 출제 범위의 역량을 연습할 수 있게 새로 구성했다.

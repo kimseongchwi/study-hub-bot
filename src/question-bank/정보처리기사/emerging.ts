@@ -1,4 +1,4 @@
-import type { StudyQuestion } from "../questions";
+import type { StudyQuestion } from "../types";
 
 // 신기술은 제품 버전 암기보다 오래 유지되는 구조와 핵심 개념을 중심으로 구성한다.
 export const EMERGING_QUESTIONS: StudyQuestion[] = [

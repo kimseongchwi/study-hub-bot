@@ -1,4 +1,4 @@
-import type { StudyQuestion } from "../questions";
+import type { StudyQuestion } from "../types";
 
 export const FUNDAMENTAL_QUESTIONS: StudyQuestion[] = [
   {
