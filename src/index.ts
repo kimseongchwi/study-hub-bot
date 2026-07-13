@@ -727,7 +727,7 @@ function selectQuestions(descriptor: SetDescriptor): StudyQuestion[] {
   } else {
     const codeTarget = Math.round(descriptor.count * 0.4);
     const dataTarget = Math.max(1, Math.round(descriptor.count * 0.2));
-    const choiceTarget = Math.max(1, Math.round(descriptor.count * 0.2));
+    const choiceTarget = Math.max(1, Math.round(descriptor.count * 0.3));
 
     takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.kind === "code"), random), codeTarget);
     takeUnique(
