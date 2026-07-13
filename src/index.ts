@@ -1,9 +1,21 @@
 import { QUESTIONS, type QuestionKind, type StudyQuestion } from "./questions";
+import {
+  getAttempts,
+  getDailySubscriptions,
+  getRecentlyServedQuestionIds,
+  getReviewQuestionIds,
+  loadQuizSession,
+  recordGrade,
+  saveQuizSession,
+  setDailySubscription,
+  type AttemptRecord
+} from "./storage";
 
 export interface Env {
   SLACK_SIGNING_SECRET: string;
   SLACK_BOT_TOKEN: string;
   SLACK_CHANNEL_ID: string;
+  DB?: D1Database;
 }
 
 interface SlackEventPayload {
@@ -17,6 +29,7 @@ interface SlackEventPayload {
     text?: string;
     ts?: string;
     thread_ts?: string;
+    user?: string;
   };
 }
 
@@ -77,7 +90,39 @@ interface SubjectsCommand {
   type: "subjects";
 }
 
-type Command = QuizCommand | RevealCommand | HelpCommand | SubjectsCommand | null;
+interface GradeCommand {
+  type: "grade";
+  target: number;
+  isCorrect: boolean;
+}
+
+interface ReviewCommand {
+  type: "review";
+  count: number;
+  weakFirst: boolean;
+}
+
+interface StatsCommand {
+  type: "stats";
+  todayOnly: boolean;
+}
+
+interface DailySubscriptionCommand {
+  type: "daily-subscription";
+  enabled: boolean;
+  count: number;
+}
+
+type Command =
+  | QuizCommand
+  | RevealCommand
+  | HelpCommand
+  | SubjectsCommand
+  | GradeCommand
+  | ReviewCommand
+  | StatsCommand
+  | DailySubscriptionCommand
+  | null;
 
 interface SetDescriptor {
   seed: number;
@@ -134,6 +179,8 @@ const TOPIC_LABELS: Record<StudyTopic, string> = {
   emerging: "신기술"
 };
 
+const QUESTION_BY_ID = new Map(QUESTIONS.map((question) => [question.id, question]));
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -143,7 +190,7 @@ export default {
       return Response.json({
         ok: true,
         service: "study-hub-bot",
-        version: "3.2.0",
+        version: "4.0.0",
         message: "공부봇이 실행 중입니다.",
         ...(isLocalRequest ? { localTest: "/test/command?text=문제줘" } : {})
       });
@@ -174,6 +221,10 @@ export default {
 
       if (command.type === "reveal") {
         return textResponse("정답·힌트·해설은 Slack 문제 스레드 안에서 요청하세요.", 400);
+      }
+
+      if (command.type !== "quiz") {
+        return textResponse("학습 기록 명령은 Slack과 D1이 연결된 환경에서 사용하세요.", 400);
       }
 
       return textResponse(buildQuizMessage(createDescriptor(command)));
@@ -207,6 +258,30 @@ export default {
     }
 
     return new Response("ok");
+  },
+
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (!env.DB) return;
+    const db = env.DB;
+
+    const subscriptions = await getDailySubscriptions(db);
+    const jobs = subscriptions.map(async (subscription) => {
+      const command: QuizCommand = {
+        type: "quiz",
+        count: subscription.questionCount,
+        mode: "daily",
+        topic: "all"
+      };
+      const message = await buildTrackedQuizMessage(
+        command,
+        subscription.userId,
+        subscription.channelId,
+        db
+      );
+      await postSlackMessage(env.SLACK_BOT_TOKEN, subscription.channelId, message);
+    });
+
+    ctx.waitUntil(Promise.all(jobs).then(() => undefined));
   }
 } satisfies ExportedHandler<Env>;
 
@@ -236,6 +311,7 @@ async function handleSlackEvent(payload: SlackEventPayload, env: Env): Promise<v
   }
 
   const threadTs = event.thread_ts ?? event.ts;
+  const userId = event.user ?? "unknown";
   let message: string;
 
   if (command.type === "help") {
@@ -243,9 +319,19 @@ async function handleSlackEvent(payload: SlackEventPayload, env: Env): Promise<v
   } else if (command.type === "subjects") {
     message = buildSubjectsMessage();
   } else if (command.type === "quiz") {
-    message = buildQuizMessage(createDescriptor(command));
+    message = env.DB
+      ? await buildTrackedQuizMessage(command, userId, event.channel, env.DB)
+      : buildQuizMessage(createDescriptor(command));
+  } else if (command.type === "review") {
+    message = await buildReviewMessage(command, userId, event.channel, env.DB);
+  } else if (command.type === "grade") {
+    message = await buildGradeMessage(command, userId, event.channel, event.thread_ts, env);
+  } else if (command.type === "stats") {
+    message = await buildStatsMessage(userId, env.DB, command.todayOnly);
+  } else if (command.type === "daily-subscription") {
+    message = await buildDailySubscriptionMessage(command, userId, event.channel, env.DB);
   } else {
-    message = await buildRevealMessage(command, event.channel, event.thread_ts, env.SLACK_BOT_TOKEN);
+    message = await buildRevealMessage(command, event.channel, event.thread_ts, env);
   }
 
   await postSlackMessage(env.SLACK_BOT_TOKEN, event.channel, message, threadTs);
@@ -264,6 +350,52 @@ export function parseCommand(input: string): Command {
 
   if (/^(과목|과목표|분야)$/.test(text)) {
     return { type: "subjects" };
+  }
+
+  const gradeMatch = text.match(/^(\d+)\s*번\s*(맞음|맞았어|맞았습니다|틀림|틀렸어|틀렸습니다)$/);
+  if (gradeMatch) {
+    return {
+      type: "grade",
+      target: Number(gradeMatch[1]),
+      isCorrect: /^(맞음|맞았어|맞았습니다)$/.test(gradeMatch[2])
+    };
+  }
+
+  const reviewMatch = text.match(/^(오답|복습|취약)(?:\s*문제)?(?:\s*(\d+)\s*개)?$/);
+  if (reviewMatch) {
+    return {
+      type: "review",
+      count: clampQuestionCount(reviewMatch[2] ? Number(reviewMatch[2]) : 5),
+      weakFirst: reviewMatch[1] === "취약"
+    };
+  }
+
+  if (/^(통계|학습\s*통계|내\s*통계)$/.test(text)) {
+    return { type: "stats", todayOnly: false };
+  }
+
+  if (/^(오늘\s*기록|오늘\s*통계)$/.test(text)) {
+    return { type: "stats", todayOnly: true };
+  }
+
+  const dailySubscriptionMatch = text.match(/^매일(?:\s*오후\s*9시)?(?:\s*문제)?(?:\s*(\d+)\s*개)?\s*(켜기|끄기)$/);
+  if (dailySubscriptionMatch) {
+    return {
+      type: "daily-subscription",
+      enabled: dailySubscriptionMatch[2] === "켜기",
+      count: clampQuestionCount(dailySubscriptionMatch[1] ? Number(dailySubscriptionMatch[1]) : 5)
+    };
+  }
+
+  const noRepeatMatch = text.match(/^중복\s*없이\s*문제(?:\s*(\d+)\s*개)?$/);
+  if (noRepeatMatch) {
+    return {
+      type: "quiz",
+      count: clampQuestionCount(noRepeatMatch[1] ? Number(noRepeatMatch[1]) : 10),
+      mode: "mixed",
+      topic: "all",
+      label: "중복 없는"
+    };
   }
 
   const numberedReveal = text.match(/^(\d+)\s*번\s*(정답|힌트|해설|풀이)$/);
@@ -442,6 +574,10 @@ function createDescriptor(command: QuizCommand): SetDescriptor {
 
 function buildQuizMessage(descriptor: SetDescriptor): string {
   const questions = selectQuestions(descriptor);
+  return formatQuizMessage(getQuizTitle(descriptor), questions, encodeSet(descriptor));
+}
+
+function getQuizTitle(descriptor: SetDescriptor): string {
   const titleMap: Partial<Record<StudyMode, string>> = {
     mock: "정보처리기사 실기 모의고사",
     frequent: "빈출 집중 문제",
@@ -450,7 +586,12 @@ function buildQuizMessage(descriptor: SetDescriptor): string {
     advanced: "심화 문제",
     daily: "오늘의 문제"
   };
-  const title = descriptor.topic === "all" ? (titleMap[descriptor.mode] ?? "정보처리기사 실기·복습 혼합 문제") : `${TOPIC_LABELS[descriptor.topic]} 집중 문제`;
+  return descriptor.topic === "all"
+    ? (titleMap[descriptor.mode] ?? "정보처리기사 실기·복습 혼합 문제")
+    : `${TOPIC_LABELS[descriptor.topic]} 집중 문제`;
+}
+
+function formatQuizMessage(title: string, questions: StudyQuestion[], setCode: string): string {
   const questionText = questions
     .map((question, index) => {
       const choices = question.choices ? `\n${question.choices.join("\n")}` : "";
@@ -465,8 +606,60 @@ function buildQuizMessage(descriptor: SetDescriptor): string {
     questionText,
     "",
     "> 답은 숨겨져 있습니다. 이 스레드에서 `정답줘`, `3번 힌트`, `3번 해설`, `전체 해설`을 입력하세요.",
-    `> 세트 코드: \`${encodeSet(descriptor)}\``
+    "> 풀이 후 `3번 맞음` 또는 `3번 틀림`으로 기록할 수 있습니다.",
+    `> 세트 코드: \`${setCode}\``
   ].join("\n");
+}
+
+async function buildTrackedQuizMessage(
+  command: QuizCommand,
+  userId: string,
+  channelId: string,
+  db: D1Database
+): Promise<string> {
+  const recentlyServed = await getRecentlyServedQuestionIds(db, userId);
+  let bestDescriptor = createDescriptor(command);
+  let bestQuestions = selectQuestions(bestDescriptor);
+  let bestOverlap = countOverlap(bestQuestions, recentlyServed);
+
+  for (let attempt = 0; attempt < 12 && bestOverlap > 0; attempt += 1) {
+    const candidate = createDescriptor(command);
+    if (command.mode === "daily") candidate.seed = (candidate.seed + attempt + 1) >>> 0;
+    const candidateQuestions = selectQuestions(candidate);
+    const overlap = countOverlap(candidateQuestions, recentlyServed);
+    if (overlap < bestOverlap) {
+      bestDescriptor = candidate;
+      bestQuestions = candidateQuestions;
+      bestOverlap = overlap;
+    }
+  }
+
+  const code = createSessionCode();
+  const title = command.label === "중복 없는" ? "중복 없는 종합 문제" : getQuizTitle(bestDescriptor);
+  await saveQuizSession(
+    db,
+    {
+      code,
+      userId,
+      channelId,
+      questionIds: bestQuestions.map((question) => question.id),
+      title,
+      createdAt: new Date().toISOString()
+    },
+    bestQuestions
+  );
+
+  return formatQuizMessage(title, bestQuestions, code);
+}
+
+function countOverlap(questions: StudyQuestion[], ids: Set<string>): number {
+  return questions.reduce((count, question) => count + (ids.has(question.id) ? 1 : 0), 0);
+}
+
+function createSessionCode(): string {
+  const values = new Uint32Array(2);
+  crypto.getRandomValues(values);
+  return `SQ1-${values[0].toString(36)}${values[1].toString(36)}`;
 }
 
 function selectQuestions(descriptor: SetDescriptor): StudyQuestion[] {
@@ -611,22 +804,182 @@ function decodeSet(token: string): SetDescriptor | null {
   return { seed, count, mode, topic };
 }
 
+async function buildReviewMessage(
+  command: ReviewCommand,
+  userId: string,
+  channelId: string,
+  db: D1Database | undefined
+): Promise<string> {
+  if (!db) return buildDatabaseSetupMessage();
+
+  const questionIds = await getReviewQuestionIds(db, userId, command.count, command.weakFirst);
+  const questions = questionIds
+    .map((questionId) => QUESTION_BY_ID.get(questionId))
+    .filter((question): question is StudyQuestion => Boolean(question));
+
+  if (questions.length === 0) {
+    return [
+      ":sparkles: *복습할 오답이 아직 없습니다.*",
+      "문제를 푼 뒤 같은 스레드에서 `3번 맞음` 또는 `3번 틀림`으로 기록해 주세요."
+    ].join("\n");
+  }
+
+  const code = createSessionCode();
+  const title = command.weakFirst ? "취약 문제 집중 복습" : "오답 복습 문제";
+  await saveQuizSession(
+    db,
+    {
+      code,
+      userId,
+      channelId,
+      questionIds: questions.map((question) => question.id),
+      title,
+      createdAt: new Date().toISOString()
+    },
+    questions
+  );
+
+  return formatQuizMessage(title, questions, code);
+}
+
+async function buildGradeMessage(
+  command: GradeCommand,
+  userId: string,
+  channel: string,
+  threadTs: string | undefined,
+  env: Env
+): Promise<string> {
+  if (!env.DB) return buildDatabaseSetupMessage();
+  if (!threadTs) {
+    return ":information_source: 채점 기록은 해당 문제의 *스레드 안에서* `3번 맞음`처럼 입력해 주세요.";
+  }
+
+  const found = await findQuestionsInThread(env.SLACK_BOT_TOKEN, channel, threadTs, env.DB);
+  if (!found) {
+    return ":warning: 이 스레드에서 문제 세트를 찾지 못했습니다. 새로 `문제`를 입력해 주세요.";
+  }
+
+  const question = found.questions[command.target - 1];
+  if (!question) {
+    return `:warning: ${command.target}번 문제는 없습니다. 1번부터 ${found.questions.length}번 사이로 입력하세요.`;
+  }
+
+  const result = await recordGrade(env.DB, userId, question.id, command.isCorrect, found.code);
+  if (command.isCorrect) {
+    const reviewText = result.nextReviewDays
+      ? `${result.nextReviewDays}일 뒤 다시 복습하도록 저장했습니다.`
+      : "연속 정답으로 오답 복습을 완료했습니다.";
+    return `:white_check_mark: *${command.target}번을 맞음으로 기록했습니다.*\n${reviewText}`;
+  }
+
+  return [
+    `:memo: *${command.target}번을 오답으로 저장했습니다.*`,
+    `누적 ${result.wrongCount}회 틀린 문제이며, 1일 뒤 복습 대상으로 표시했습니다.`,
+    `바로 확인하려면 \`${command.target}번 풀이\`, 다시 풀려면 \`오답\`을 입력하세요.`
+  ].join("\n");
+}
+
+async function buildStatsMessage(
+  userId: string,
+  db: D1Database | undefined,
+  todayOnly: boolean
+): Promise<string> {
+  if (!db) return buildDatabaseSetupMessage();
+  const attempts = await getAttempts(db, userId, todayOnly);
+  if (attempts.length === 0) {
+    return todayOnly
+      ? ":bar_chart: 오늘 기록한 채점 결과가 아직 없습니다."
+      : ":bar_chart: 학습 기록이 아직 없습니다. 문제 스레드에서 `3번 맞음` 또는 `3번 틀림`을 입력해 주세요.";
+  }
+
+  const correct = attempts.filter((attempt) => attempt.isCorrect).length;
+  const rate = Math.round((correct / attempts.length) * 100);
+  const topicStats = summarizeTopics(attempts);
+  const weakest = [...topicStats.entries()]
+    .filter(([, value]) => value.total >= 2)
+    .sort((left, right) => left[1].correct / left[1].total - right[1].correct / right[1].total)
+    .slice(0, 3);
+  const streak = todayOnly ? 0 : calculateStreak(attempts);
+
+  return [
+    `:bar_chart: *${todayOnly ? "오늘의 학습 기록" : "학습 통계"}*`,
+    `• 채점: *${attempts.length}문제*`,
+    `• 정답: *${correct}문제* · 정답률 *${rate}%*`,
+    ...(todayOnly ? [] : [`• 연속 학습: *${streak}일*`]),
+    "",
+    weakest.length > 0 ? "*보완할 분야*" : "*분야별 기록*",
+    ...(weakest.length > 0
+      ? weakest.map(([topic, value]) => `• ${topic}: ${Math.round((value.correct / value.total) * 100)}% (${value.correct}/${value.total})`)
+      : [...topicStats.entries()].slice(0, 5).map(([topic, value]) => `• ${topic}: ${value.correct}/${value.total}`)),
+    "",
+    "> 틀린 문제는 `오답 5개`, 취약 순서는 `취약 5개`로 다시 풀 수 있습니다."
+  ].join("\n");
+}
+
+async function buildDailySubscriptionMessage(
+  command: DailySubscriptionCommand,
+  userId: string,
+  channelId: string,
+  db: D1Database | undefined
+): Promise<string> {
+  if (!db) return buildDatabaseSetupMessage();
+  await setDailySubscription(db, userId, channelId, command.enabled, command.count);
+  return command.enabled
+    ? `:alarm_clock: 매일 *오후 9시*에 이 채널로 *${command.count}문제*를 보내겠습니다.`
+    : ":no_bell: 매일 문제 알림을 껐습니다.";
+}
+
+function summarizeTopics(attempts: AttemptRecord[]): Map<string, { total: number; correct: number }> {
+  const result = new Map<string, { total: number; correct: number }>();
+  for (const attempt of attempts) {
+    const topic = QUESTION_BY_ID.get(attempt.questionId)?.topic ?? "기타";
+    const current = result.get(topic) ?? { total: 0, correct: 0 };
+    current.total += 1;
+    if (attempt.isCorrect) current.correct += 1;
+    result.set(topic, current);
+  }
+  return result;
+}
+
+function calculateStreak(attempts: AttemptRecord[]): number {
+  const studyDays = new Set(attempts.map((attempt) => toKoreanDate(attempt.answeredAt)));
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const todayKey = today.toISOString().slice(0, 10);
+  const yesterday = new Date(today.getTime() - 86_400_000).toISOString().slice(0, 10);
+  let cursor = studyDays.has(todayKey) ? today : studyDays.has(yesterday) ? new Date(today.getTime() - 86_400_000) : null;
+  let streak = 0;
+
+  while (cursor && studyDays.has(cursor.toISOString().slice(0, 10))) {
+    streak += 1;
+    cursor = new Date(cursor.getTime() - 86_400_000);
+  }
+  return streak;
+}
+
+function toKoreanDate(iso: string): string {
+  return new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function buildDatabaseSetupMessage(): string {
+  return ":information_source: 학습 기록 저장소가 아직 연결되지 않았습니다. D1 연결 후 사용할 수 있습니다.";
+}
+
 async function buildRevealMessage(
   command: RevealCommand,
   channel: string,
   threadTs: string | undefined,
-  botToken: string
+  env: Env
 ): Promise<string> {
   if (!threadTs) {
     return ":information_source: 정답·힌트·해설은 해당 문제의 *스레드 안에서* 입력해 주세요.";
   }
 
-  const descriptor = await findSetInThread(botToken, channel, threadTs);
-  if (!descriptor) {
+  const found = await findQuestionsInThread(env.SLACK_BOT_TOKEN, channel, threadTs, env.DB);
+  if (!found) {
     return ":warning: 이 스레드에서 문제 세트를 찾지 못했습니다. 새로 `문제줘`를 입력해 주세요.";
   }
 
-  const questions = selectQuestions(descriptor);
+  const questions = found.questions;
 
   if (command.target !== "all") {
     const question = questions[command.target - 1];
@@ -677,7 +1030,12 @@ function buildExplanationBlock(number: number, question: StudyQuestion): string 
   ].join("\n");
 }
 
-async function findSetInThread(botToken: string, channel: string, threadTs: string): Promise<SetDescriptor | null> {
+async function findQuestionsInThread(
+  botToken: string,
+  channel: string,
+  threadTs: string,
+  db?: D1Database
+): Promise<{ code: string; questions: StudyQuestion[] } | null> {
   const url = new URL("https://slack.com/api/conversations.replies");
   url.searchParams.set("channel", channel);
   url.searchParams.set("ts", threadTs);
@@ -695,8 +1053,21 @@ async function findSetInThread(botToken: string, channel: string, threadTs: stri
   }
 
   for (const message of [...(result.messages ?? [])].reverse()) {
-    const token = message.text?.match(/세트 코드:\s*`?(IQ[23]-[a-z0-9_-]+)`?/i)?.[1];
-    if (token) return decodeSet(token);
+    const token = message.text?.match(/세트 코드:\s*`?((?:IQ[23]-[a-z0-9_-]+)|(?:SQ1-[a-z0-9]+))`?/i)?.[1];
+    if (!token) continue;
+
+    if (/^SQ1-/i.test(token)) {
+      if (!db) return null;
+      const session = await loadQuizSession(db, token);
+      if (!session) return null;
+      const questions = session.questionIds
+        .map((questionId) => QUESTION_BY_ID.get(questionId))
+        .filter((question): question is StudyQuestion => Boolean(question));
+      return questions.length > 0 ? { code: token, questions } : null;
+    }
+
+    const descriptor = decodeSet(token);
+    if (descriptor) return { code: token, questions: selectQuestions(descriptor) };
   }
   return null;
 }
@@ -707,7 +1078,7 @@ function buildHelpMessage(): string {
     "개수를 생략하면 10문제이며, `줘`·`주세요`는 붙여도 되고 생략해도 됩니다.",
     "",
     "*기본 출제*",
-    "`문제`  `문제 5개`",
+    "`문제`  `문제 5개`  `중복 없이 문제 10개`",
     "`모의고사`  `오늘 문제`",
     "",
     "*유형별 출제*",
@@ -725,7 +1096,16 @@ function buildHelpMessage(): string {
     "",
     "*문제를 받은 뒤 같은 스레드에서*",
     "`3번 힌트`  `3번 정답`  `3번 풀이`",
-    "`전체 정답`  `전체 풀이`"
+    "`전체 정답`  `전체 풀이`",
+    "`3번 맞음`  `3번 틀림` → 학습 결과 기록",
+    "",
+    "*오답 · 통계*",
+    "`오답`  `오답 5개`  `복습`  `취약 5개`",
+    "`통계`  `오늘 기록`",
+    "",
+    "*매일 자동 출제*",
+    "`매일 문제 5개 켜기`  `매일 문제 끄기`",
+    "> 매일 오후 9시에 설정한 문제를 이 채널로 보냅니다."
   ].join("\n");
 }
 
