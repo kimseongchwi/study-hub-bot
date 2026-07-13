@@ -21,6 +21,11 @@ export interface DailySubscription {
   questionCount: number;
 }
 
+export interface DailySubscriptionStatus {
+  enabled: boolean;
+  questionCount: number;
+}
+
 interface ReviewRow {
   question_id: string;
   wrong_count: number;
@@ -262,6 +267,27 @@ export async function getDailySubscriptions(db: D1Database): Promise<DailySubscr
     channelId: row.channel_id,
     questionCount: row.question_count
   }));
+}
+
+export async function getDailySubscriptionStatus(
+  db: D1Database,
+  userId: string,
+  channelId: string
+): Promise<DailySubscriptionStatus | null> {
+  const row = await db
+    .prepare(
+      `SELECT enabled, question_count
+       FROM daily_subscriptions
+       WHERE user_id = ? AND channel_id = ?`
+    )
+    .bind(userId, channelId)
+    .first<{ enabled: number; question_count: number }>();
+
+  if (!row) return null;
+  return {
+    enabled: row.enabled === 1,
+    questionCount: row.question_count
+  };
 }
 
 function reviewIntervalForStreak(streak: number): number {
