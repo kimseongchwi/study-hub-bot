@@ -6,3 +6,5 @@ node_modules/
 !.env.example
 .DS_Store
 *.log
+.claude/settings.local.json
+.claude/.precommit-state
