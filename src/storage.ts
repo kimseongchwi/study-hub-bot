@@ -210,6 +210,22 @@ export async function getReviewQuestionIds(
   return (result.results ?? []).map((row) => row.question_id);
 }
 
+export async function removeFromReviewQueue(
+  db: D1Database,
+  userId: string,
+  questionId: string
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `DELETE FROM review_queue
+       WHERE user_id = ? AND question_id = ?`
+    )
+    .bind(userId, questionId)
+    .run();
+
+  return (result.meta.changes ?? 0) > 0;
+}
+
 export async function getAttempts(db: D1Database, userId: string, todayOnly = false): Promise<AttemptRecord[]> {
   const todayClause = todayOnly
     ? "AND date(answered_at, '+9 hours') = date('now', '+9 hours')"
