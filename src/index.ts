@@ -7,6 +7,7 @@ import {
   getReviewQuestionIds,
   loadQuizSession,
   recordGrade,
+  removeFromReviewQueue,
   saveQuizSession,
   setDailySubscription,
   type AttemptRecord
@@ -103,6 +104,11 @@ interface ReviewCommand {
   weakFirst: boolean;
 }
 
+interface RemoveReviewCommand {
+  type: "remove-review";
+  target: number;
+}
+
 interface StatsCommand {
   type: "stats";
   todayOnly: boolean;
@@ -121,6 +127,7 @@ type Command =
   | SubjectsCommand
   | GradeCommand
   | ReviewCommand
+  | RemoveReviewCommand
   | StatsCommand
   | DailySubscriptionCommand
   | null;
@@ -325,6 +332,8 @@ async function handleSlackEvent(payload: SlackEventPayload, env: Env): Promise<v
       : buildQuizMessage(createDescriptor(command));
   } else if (command.type === "review") {
     message = await buildReviewMessage(command, userId, event.channel, env.DB);
+  } else if (command.type === "remove-review") {
+    message = await buildRemoveReviewMessage(command, userId, event.channel, event.thread_ts, env);
   } else if (command.type === "grade") {
     message = await buildGradeMessage(command, userId, event.channel, event.thread_ts, env);
   } else if (command.type === "stats") {
@@ -351,6 +360,11 @@ export function parseCommand(input: string): Command {
 
   if (/^(과목|과목표|분야)$/.test(text)) {
     return { type: "subjects" };
+  }
+
+  const removeReviewMatch = text.match(/^(\d+)\s*번\s*(오답\s*해제|오답\s*삭제|복습\s*해제)$/);
+  if (removeReviewMatch) {
+    return { type: "remove-review", target: Number(removeReviewMatch[1]) };
   }
 
   const gradeMatch = text.match(/^(\d+)\s*번\s*(맞음|맞았어|맞았습니다|틀림|틀렸어|틀렸습니다)$/);
@@ -884,6 +898,37 @@ async function buildGradeMessage(
   ].join("\n");
 }
 
+async function buildRemoveReviewMessage(
+  command: RemoveReviewCommand,
+  userId: string,
+  channel: string,
+  threadTs: string | undefined,
+  env: Env
+): Promise<string> {
+  if (!env.DB) return buildDatabaseSetupMessage();
+  if (!threadTs) {
+    return ":information_source: 오답 해제는 해당 문제의 *스레드 안에서* `1번 오답해제`처럼 입력해 주세요.";
+  }
+
+  const found = await findQuestionsInThread(env.SLACK_BOT_TOKEN, channel, threadTs, env.DB);
+  if (!found) {
+    return ":warning: 이 스레드에서 문제 세트를 찾지 못했습니다. `오답`을 입력해 복습 문제를 다시 받아 주세요.";
+  }
+
+  const question = found.questions[command.target - 1];
+  if (!question) {
+    return `:warning: ${command.target}번 문제는 없습니다. 1번부터 ${found.questions.length}번 사이로 입력하세요.`;
+  }
+
+  const removed = await removeFromReviewQueue(env.DB, userId, question.id);
+  return removed
+    ? [
+        `:wastebasket: *${command.target}번을 오답 복습에서 해제했습니다.*`,
+        "기존 채점 기록과 학습 통계는 그대로 유지됩니다."
+      ].join("\n")
+    : `:information_source: ${command.target}번은 현재 오답 복습 목록에 없습니다.`;
+}
+
 async function buildStatsMessage(
   userId: string,
   db: D1Database | undefined,
@@ -1124,6 +1169,7 @@ function buildHelpMessage(): string {
     "",
     "*오답 · 통계*",
     "`오답`  `오답 5개`  `복습`  `취약 5개`",
+    "오답 문제 스레드에서 `1번 오답해제`",
     "`통계`  `오늘 기록`",
     "",
     "*매일 자동 출제*",
