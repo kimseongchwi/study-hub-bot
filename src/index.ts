@@ -1,6 +1,7 @@
 import { QUESTIONS, type QuestionKind, type StudyQuestion } from "./questions";
 import {
   getAttempts,
+  getDailySubscriptionStatus,
   getDailySubscriptions,
   getRecentlyServedQuestionIds,
   getReviewQuestionIds,
@@ -109,7 +110,7 @@ interface StatsCommand {
 
 interface DailySubscriptionCommand {
   type: "daily-subscription";
-  enabled: boolean;
+  action: "enable" | "disable" | "status";
   count: number;
 }
 
@@ -378,11 +379,15 @@ export function parseCommand(input: string): Command {
     return { type: "stats", todayOnly: true };
   }
 
-  const dailySubscriptionMatch = text.match(/^매일(?:\s*오후\s*9시)?(?:\s*문제)?(?:\s*(\d+)\s*개)?\s*(켜기|끄기)$/);
+  if (/^(자동\s*출제|매일\s*문제|알림)\s*(확인|상태)$/.test(text)) {
+    return { type: "daily-subscription", action: "status", count: 5 };
+  }
+
+  const dailySubscriptionMatch = text.match(/^매일(?:\s*오전\s*9시)?(?:\s*문제)?(?:\s*(\d+)\s*개)?\s*(켜기|끄기)$/);
   if (dailySubscriptionMatch) {
     return {
       type: "daily-subscription",
-      enabled: dailySubscriptionMatch[2] === "켜기",
+      action: dailySubscriptionMatch[2] === "켜기" ? "enable" : "disable",
       count: clampQuestionCount(dailySubscriptionMatch[1] ? Number(dailySubscriptionMatch[1]) : 5)
     };
   }
@@ -923,10 +928,28 @@ async function buildDailySubscriptionMessage(
   db: D1Database | undefined
 ): Promise<string> {
   if (!db) return buildDatabaseSetupMessage();
-  await setDailySubscription(db, userId, channelId, command.enabled, command.count);
-  return command.enabled
-    ? `:alarm_clock: 매일 *오후 9시*에 이 채널로 *${command.count}문제*를 보내겠습니다.`
-    : ":no_bell: 매일 문제 알림을 껐습니다.";
+  if (command.action === "status") {
+    const status = await getDailySubscriptionStatus(db, userId, channelId);
+    if (!status || !status.enabled) {
+      return [
+        ":no_bell: *자동 출제는 현재 꺼져 있습니다.*",
+        "켜려면 `매일 문제 5개 켜기`를 입력하세요."
+      ].join("\n");
+    }
+    return [
+      ":alarm_clock: *자동 출제가 켜져 있습니다.*",
+      `• 시간: 매일 *오전 9시*`,
+      `• 개수: *${status.questionCount}문제*`,
+      `• 채널: 현재 채널`,
+      "끄려면 `매일 문제 끄기`를 입력하세요."
+    ].join("\n");
+  }
+
+  const enabled = command.action === "enable";
+  await setDailySubscription(db, userId, channelId, enabled, command.count);
+  return enabled
+    ? `:alarm_clock: 매일 *오전 9시*에 이 채널로 *${command.count}문제*를 보내겠습니다.`
+    : ":no_bell: 매일 문제 자동 출제를 껐습니다.";
 }
 
 function summarizeTopics(attempts: AttemptRecord[]): Map<string, { total: number; correct: number }> {
@@ -1105,7 +1128,8 @@ function buildHelpMessage(): string {
     "",
     "*매일 자동 출제*",
     "`매일 문제 5개 켜기`  `매일 문제 끄기`",
-    "> 매일 오후 9시에 설정한 문제를 이 채널로 보냅니다."
+    "`자동출제 확인` → 켜짐·꺼짐, 시간, 문제 개수 확인",
+    "> 매일 오전 9시에 설정한 문제를 이 채널로 보냅니다."
   ].join("\n");
 }
 
