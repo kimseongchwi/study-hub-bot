@@ -6,6 +6,9 @@
   "secrets": {
     "required": ["SLACK_SIGNING_SECRET", "SLACK_BOT_TOKEN", "SLACK_CHANNEL_ID"]
   },
+  "triggers": {
+    "crons": ["0 12 * * *"]
+  },
   "observability": {
     "enabled": true
   }
