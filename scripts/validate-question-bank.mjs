@@ -12,6 +12,7 @@ const ids = new Map();
 const errors = [];
 const certificationCounts = new Map();
 let count = 0;
+let sqldExamStyleCount = 0;
 
 for (const file of files) {
   const source = fs.readFileSync(file, "utf8");
@@ -21,6 +22,7 @@ for (const file of files) {
     count += 1;
     const certification = path.relative(root, file).split(path.sep)[0];
     certificationCounts.set(certification, (certificationCounts.get(certification) ?? 0) + 1);
+    if (certification === "SQLD" && block.text.includes('"exam-style"')) sqldExamStyleCount += 1;
     const line = source.slice(0, block.start).split("\n").length;
     const display = `${path.relative(process.cwd(), file)}:${line}`;
     const values = new Map();
@@ -54,6 +56,17 @@ for (const file of files) {
     if (kind === "choice" && !/^\s{4}choices:\s*\[[^\]]*,[^\]]*\]/m.test(block.text)) {
       errors.push(`${display} 보기형 문제에는 choices가 2개 이상 필요합니다.`);
     }
+
+    const choicesMatch = block.text.match(/^\s{4}choices:\s*(\[[^\n]+\]),?$/m);
+    const answer = unquote(values.get("answer"));
+    if (certification === "SQLD" && choicesMatch && answer) {
+      try {
+        const choices = JSON.parse(choicesMatch[1]);
+        if (!choices.includes(answer)) errors.push(`${display} 정답이 보기에 없습니다: ${answer}`);
+      } catch {
+        errors.push(`${display} choices 배열을 읽을 수 없습니다.`);
+      }
+    }
   }
 }
 
@@ -61,8 +74,11 @@ if (count === 0) errors.push("검사할 문제를 찾지 못했습니다.");
 if (certificationCounts.get("정보처리기사") !== 171) {
   errors.push(`정보처리기사 문제 수가 171개가 아닙니다: ${certificationCounts.get("정보처리기사") ?? 0}개`);
 }
-if (certificationCounts.get("SQLD") !== 100) {
-  errors.push(`SQLD 문제 수가 100개가 아닙니다: ${certificationCounts.get("SQLD") ?? 0}개`);
+if (certificationCounts.get("SQLD") !== 150) {
+  errors.push(`SQLD 문제 수가 150개가 아닙니다: ${certificationCounts.get("SQLD") ?? 0}개`);
+}
+if (sqldExamStyleCount !== 50) {
+  errors.push(`SQLD 실전형 문제 수가 50개가 아닙니다: ${sqldExamStyleCount}개`);
 }
 
 if (errors.length > 0) {
@@ -72,7 +88,7 @@ if (errors.length > 0) {
 }
 
 console.log(
-  `문제은행 검증 완료: ${count}문제 (정보처리기사 ${certificationCounts.get("정보처리기사")}개, SQLD ${certificationCounts.get("SQLD")}개), 중복 ID 없음, 필수 필드 정상`
+  `문제은행 검증 완료: ${count}문제 (정보처리기사 ${certificationCounts.get("정보처리기사")}개, SQLD ${certificationCounts.get("SQLD")}개·실전형 ${sqldExamStyleCount}개), 중복 ID 없음, 필수 필드 정상`
 );
 
 function walk(directory) {

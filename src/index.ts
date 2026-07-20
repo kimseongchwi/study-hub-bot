@@ -72,7 +72,8 @@ type StudyTopic =
   | "modeling"
   | "sql_basic"
   | "sql_advanced"
-  | "management";
+  | "management"
+  | "exam_style";
 
 interface QuizCommand {
   type: "quiz";
@@ -172,7 +173,8 @@ const TOPIC_TAGS: Record<Exclude<StudyTopic, "all">, string[]> = {
   modeling: ["modeling"],
   sql_basic: ["sql-basic"],
   sql_advanced: ["sql-advanced"],
-  management: ["management"]
+  management: ["management"],
+  exam_style: ["exam-style"]
 };
 
 const TOPIC_LABELS: Record<StudyTopic, string> = {
@@ -197,7 +199,8 @@ const TOPIC_LABELS: Record<StudyTopic, string> = {
   modeling: "데이터 모델링",
   sql_basic: "SQL 기본",
   sql_advanced: "SQL 활용",
-  management: "관리 구문"
+  management: "관리 구문",
+  exam_style: "실전형"
 };
 
 const ALL_QUESTIONS = Object.values(QUESTION_BANKS).flatMap((bank) => bank.questions);
@@ -517,6 +520,9 @@ function normalizeTopic(
   const value = raw.trim().toLowerCase().replace(/\s+/g, "");
 
   if (certificationId === "sqld") {
+    if (["실전형", "기출형", "기출스타일", "복원형"].includes(value)) {
+      return { mode: "choice", topic: "exam_style", label: "실전형" };
+    }
     if (["데이터모델링", "모델링", "모델", "엔터티", "속성", "관계", "식별자", "정규화"].includes(value)) {
       return { mode: "choice", topic: "modeling", label: "데이터 모델링" };
     }
@@ -747,15 +753,60 @@ function selectQuestions(descriptor: SetDescriptor): StudyQuestion[] {
   const topicPool = questions.filter((question) => matchesTopic(question, descriptor.topic));
 
   if (descriptor.topic !== "all") {
+    if (descriptor.certificationId === "sqld" && descriptor.topic === "exam_style") {
+      const modelingTarget = Math.max(1, Math.round(descriptor.count * 0.2));
+      takeUnique(
+        selected,
+        shuffled(topicPool.filter((question) => question.tags.includes("modeling")), random),
+        modelingTarget
+      );
+      takeUnique(
+        selected,
+        shuffled(topicPool.filter((question) => !question.tags.includes("modeling")), random),
+        descriptor.count
+      );
+      return shuffled(selected.slice(0, descriptor.count), random);
+    }
     takeUnique(selected, shuffled(topicPool, random), descriptor.count);
     const fallback = filterByMode(questions, descriptor.mode, descriptor.certificationId);
     takeUnique(selected, shuffled(fallback, random), descriptor.count);
     return selected.slice(0, descriptor.count);
   }
 
-  if (
+  if (descriptor.certificationId === "sqld" && descriptor.mode === "mock") {
+    const modelingTarget = Math.max(1, Math.round(descriptor.count * 0.2));
+    const examStyleTarget = Math.max(1, Math.round(descriptor.count * 0.5));
+    const examStyleModelingTarget = Math.max(1, Math.round(modelingTarget * 0.5));
+    const examStyleSqlEndTarget = modelingTarget + examStyleTarget - examStyleModelingTarget;
+    takeUnique(
+      selected,
+      shuffled(
+        questions.filter((question) => question.tags.includes("modeling") && question.tags.includes("exam-style")),
+        random
+      ),
+      examStyleModelingTarget
+    );
+    takeUnique(
+      selected,
+      shuffled(questions.filter((question) => question.tags.includes("modeling")), random),
+      modelingTarget
+    );
+    takeUnique(
+      selected,
+      shuffled(
+        questions.filter((question) => !question.tags.includes("modeling") && question.tags.includes("exam-style")),
+        random
+      ),
+      examStyleSqlEndTarget
+    );
+    takeUnique(
+      selected,
+      shuffled(questions.filter((question) => !question.tags.includes("modeling")), random),
+      descriptor.count
+    );
+  } else if (
     descriptor.certificationId === "sqld" &&
-    ["mixed", "mock", "daily"].includes(descriptor.mode)
+    ["mixed", "daily"].includes(descriptor.mode)
   ) {
     const modelingTarget = Math.max(1, Math.round(descriptor.count * 0.2));
     takeUnique(
@@ -1253,7 +1304,7 @@ function buildHelpMessage(certificationId: CertificationId): string {
       "`정규화`  `서브쿼리`  `윈도우 함수`  `DDL`  `DML`",
       "",
       "*난이도별 출제*",
-      "`빈출`  `심화`  `계산`  `객관식`",
+      "`실전형`  `빈출`  `심화`  `계산`  `객관식`",
       "",
       "> 예: `데이터 모델링 5개` · `SQL 활용 문제 10개 주세요`",
       "> `과목`을 입력하면 세부 분야를 모두 볼 수 있습니다.",
@@ -1311,6 +1362,9 @@ function buildSubjectsMessage(certificationId: CertificationId): string {
   if (certificationId === "sqld") {
     return [
       ":books: *SQLD 출제 가능한 과목*",
+      "",
+      "*실전형*",
+      "`실전형` → 기출 복원 회차의 구성과 함정 유형을 반영한 새 문제",
       "",
       "*데이터 모델링의 이해*",
       "`데이터 모델링`  `엔터티`  `속성`  `관계`  `식별자`  `정규화`",
