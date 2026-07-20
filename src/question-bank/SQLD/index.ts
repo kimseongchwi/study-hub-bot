@@ -1,5 +1,12 @@
 import type { StudyQuestion } from "../types";
+import { SQLD_MANAGEMENT_QUESTIONS } from "./관리구문";
+import { SQLD_MODELING_QUESTIONS } from "./데이터모델링";
+import { SQLD_ADVANCED_QUESTIONS } from "./SQL활용";
+import { SQLD_BASIC_QUESTIONS } from "./SQL기본";
 
-// SQLD 문제를 추가할 때 영역별 파일로 나누고 이 배열에 합친다.
-// 예: fundamentals.ts, sql-practice.ts, mock-exam.ts
-export const SQLD_QUESTIONS: StudyQuestion[] = [];
+export const SQLD_QUESTIONS: StudyQuestion[] = [
+  ...SQLD_MODELING_QUESTIONS,
+  ...SQLD_BASIC_QUESTIONS,
+  ...SQLD_ADVANCED_QUESTIONS,
+  ...SQLD_MANAGEMENT_QUESTIONS
+];

@@ -9,14 +9,14 @@
   "scripts": {
     "dev": "wrangler dev --local --ip 127.0.0.1 --port 8787",
     "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "wrangler types --include-runtime false --check && tsc --noEmit",
     "validate:questions": "node scripts/validate-question-bank.mjs",
     "check": "npm run typecheck && npm run validate:questions",
     "db:migrate:local": "wrangler d1 migrations apply study-hub-bot-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply study-hub-bot-db --remote"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260710.1",
+    "@cloudflare/workers-types": "^5.20260719.1",
     "typescript": "^7.0.2",
     "wrangler": "^4.110.0"
   }

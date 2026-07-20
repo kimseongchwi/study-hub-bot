@@ -17,6 +17,10 @@ question-bank/
 │  ├─ 신기술.ts
 │  └─ index.ts
 └─ SQLD/
+   ├─ 데이터모델링.ts
+   ├─ SQL기본.ts
+   ├─ SQL활용.ts
+   ├─ 관리구문.ts
    └─ index.ts
 ```
 
@@ -34,15 +38,15 @@ question-bank/
 - `정보처리기사/신기술.ts`: 클라우드, AI 등 최신기술 문제
 - 각 자격증의 `index.ts`: 해당 폴더의 문제를 하나의 배열로 합치는 파일
 
-## SQLD 문제를 추가하는 방법
+## SQLD 문제 구성
 
-1. `SQLD` 폴더에 영역별 파일을 만든다.
-   - `fundamentals.ts`
-   - `sql-practice.ts`
-   - `mock-exam.ts`
-2. 각 파일은 `StudyQuestion[]` 형식으로 문제를 내보낸다.
-3. `SQLD/index.ts`에서 배열을 합친다.
-4. Slack 채널 ID를 자격증 ID `sqld`와 연결한다.
+- `데이터모델링.ts`: 데이터 모델링의 이해 20문제
+- `SQL기본.ts`: SELECT, 함수, WHERE, GROUP BY, ORDER BY, 조인 35문제
+- `SQL활용.ts`: 서브쿼리, 집합·그룹·윈도우 함수, Top N, 계층형 질의 35문제
+- `관리구문.ts`: DML, TCL, DDL, DCL 10문제
+- `index.ts`: 네 영역을 하나의 100문제 배열로 합친다.
+
+새 문제는 해당 영역 파일에 `StudyQuestion[]` 형식으로 추가하고 `sqld-영역-번호` 형태의 ID를 사용한다.
 
 다른 자격증도 `한국사`, `ADsP`, `공기업-NCS`처럼 같은 방식으로 폴더를 추가한다.
 

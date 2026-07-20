@@ -1,8 +1,8 @@
 # Study Hub Bot
 
-Slack에서 정보처리기사 실기와 개념 복습 문제를 풀 수 있는 Cloudflare Worker 프로젝트입니다.
+Slack에서 정보처리기사 실기와 SQLD 문제를 채널별로 풀 수 있는 Cloudflare Worker 프로젝트입니다.
 
-4.1 버전은 최근 출제 흐름을 참고해 직접 만든 171문제 은행에서 코드 추적, SQL, 개념 단답, 보기형 문제를 균형 있게 출제합니다. 일반 4지선다뿐 아니라 `(가)·(나)`에 들어갈 용어를 보기에서 골라 쓰는 실기형 문제를 포함합니다. D1에 사용자별 정답·오답, 복습 주기, 통계와 최근 출제 기록을 저장하며 매일 오전 9시 자동 출제도 지원합니다. 실제 기출문장을 복제하지 않으며, 문제 스레드에서 정답·힌트·쉬운 풀이와 헷갈리는 개념을 확인할 수 있습니다.
+정보처리기사 171문제와 SQLD 100문제를 직접 구성해 채널에 맞는 문제은행에서 출제합니다. SQLD는 데이터 모델링 20문제와 SQL 기본·활용·관리 구문 80문제로 구성되며 `모의고사` 명령은 실제 시험 비율에 맞춰 50문제를 냅니다. D1에 사용자별 정답·오답, 복습 주기, 통계와 최근 출제 기록을 저장하며 매일 오전 9시 자동 출제도 지원합니다. 실제 기출문장을 복제하지 않으며, 문제 스레드에서 정답·힌트·쉬운 풀이와 헷갈리는 개념을 확인할 수 있습니다.
 
 ## 문제은행 구성
 
@@ -11,12 +11,12 @@ Slack에서 정보처리기사 실기와 개념 복습 문제를 풀 수 있는 
 ```text
 src/question-bank/
 ├─ 정보처리기사/  # 프로그래밍, DB·SQL, 설계·테스트, 시스템, 보안, 신기술 등
-├─ SQLD/
+├─ SQLD/             # 데이터 모델링, SQL 기본, SQL 활용, 관리 구문
 ├─ index.ts
 └─ types.ts
 ```
 
-현재 기본 문제은행은 `정보처리기사`이며, `SQLD` 폴더에는 추후 문제를 추가할 수 있는 진입점이 준비되어 있습니다. 세부적인 파일 역할과 새 자격증 추가 방법은 `src/question-bank/README.md`를 참고합니다.
+`#정보처리기사` 채널에서는 정보처리기사 문제은행을, `#sqld` 채널에서는 SQLD 문제은행을 사용합니다. 세부적인 파일 역할과 새 자격증 추가 방법은 `src/question-bank/README.md`를 참고합니다.
 
 ## 실행 환경
 
@@ -52,7 +52,9 @@ nvm use
 - `매일 문제 5개 켜기`, `매일 문제 끄기`, `자동출제 확인`
 - `도움말`
 
-기존의 `문제줘`, `SQL 문제 5개 줘`, `3번 해설`, `전체 해설` 표현도 계속 인식합니다. 기본 10문제는 코드 추적 비중을 가장 높게 두고 SQL·데이터베이스, 개념 단답, 보기형을 섞습니다. `모의고사`는 20문제를 출제합니다.
+기존의 `문제줘`, `SQL 문제 5개 줘`, `3번 해설`, `전체 해설` 표현도 계속 인식합니다. 정보처리기사 채널의 `모의고사`는 20문제, SQLD 채널의 `모의고사`는 데이터 모델링 10문제와 SQL 40문제를 합친 50문제를 출제합니다.
+
+SQLD 채널에서는 `데이터 모델링`, `SQL 기본`, `SQL 활용`, `관리 구문`, `정규화`, `서브쿼리`, `윈도우 함수`, `DDL`, `DML` 명령을 사용할 수 있습니다.
 
 모든 출제·정답 명령에는 `줘` 또는 `주세요`를 붙일 수 있습니다. 예를 들어 `프로그래밍`, `프로그래밍 줘`, `프로그래밍 5개 줘`, `프로그래밍 문제 5개 주세요`를 모두 인식합니다.
 
@@ -106,6 +108,14 @@ http://localhost:8787/test/command?text=SQL%20문제%204개%20줘
 http://localhost:8787/test/command?text=도움말
 ```
 
+SQLD 문제은행은 `certification=sqld`를 추가해 확인합니다.
+
+```text
+http://localhost:8787/test/command?certification=sqld&text=문제%2010개
+http://localhost:8787/test/command?certification=sqld&text=데이터%20모델링%205개
+http://localhost:8787/test/command?certification=sqld&text=모의고사
+```
+
 여기까지는 Cloudflare 계정과 Slack 토큰이 없어도 실행됩니다.
 
 ## 4. Cloudflare 배포
@@ -142,9 +152,10 @@ npm run dev
 npx wrangler secret put SLACK_SIGNING_SECRET
 npx wrangler secret put SLACK_BOT_TOKEN
 npx wrangler secret put SLACK_CHANNEL_ID
+npx wrangler secret put SLACK_SQLD_CHANNEL_ID
 ```
 
-`SLACK_CHANNEL_ID`에는 공부봇이 응답할 Slack 채널의 ID를 입력합니다. 실제 토큰과 채널 ID는 `wrangler.jsonc`, README 또는 GitHub에 기록하지 않습니다.
+`SLACK_CHANNEL_ID`에는 정보처리기사 채널 ID를, `SLACK_SQLD_CHANNEL_ID`에는 SQLD 채널 ID를 입력합니다. 실제 토큰과 채널 ID는 `wrangler.jsonc`, README 또는 GitHub에 기록하지 않습니다.
 
 ## 7. Slack 앱 설정
 
@@ -155,7 +166,7 @@ npx wrangler secret put SLACK_CHANNEL_ID
    - `channels:history`
 4. 앱을 워크스페이스에 설치하고 `xoxb-`로 시작하는 Bot Token을 복사합니다.
 5. **Basic Information → App Credentials**에서 Signing Secret을 복사합니다.
-6. `#정보처리기사` 채널의 **통합 → 앱 추가**에서 `공부봇`을 추가합니다.
+6. `#정보처리기사`와 `#sqld` 채널의 **통합 → 앱 추가**에서 `공부봇`을 추가합니다.
 7. **Event Subscriptions**를 켜고 Request URL에 다음 주소를 입력합니다.
 
 ```text
@@ -167,7 +178,7 @@ https://study-hub-bot.<계정>.workers.dev/slack/events
 
 ## 8. 테스트
 
-`#정보처리기사` 채널에서 입력합니다.
+`#정보처리기사` 또는 `#sqld` 채널에서 입력합니다.
 
 ```text
 문제줘
@@ -215,7 +226,7 @@ Cron Trigger는 매일 `00:00 UTC`, 한국 시간 오전 9시에 실행됩니다
 npm run check
 ```
 
-타입 검사와 함께 171문제의 필수 필드, 문제 ID 중복, 유형·난이도 값, 보기형 선택지를 검사합니다. 같은 검사는 `.github/workflows/check.yml`을 통해 모든 `main` 푸시와 Pull Request에서 자동 실행됩니다.
+Wrangler 바인딩 타입과 TypeScript를 검사하고, 271문제의 필수 필드, 문제 ID 중복, 유형·난이도 값, 보기형 선택지를 검사합니다. 같은 검사는 `.github/workflows/check.yml`을 통해 모든 `main` 푸시와 Pull Request에서 자동 실행됩니다.
 
 ## 자동 배포
 
@@ -223,7 +234,7 @@ npm run check
 
 ## 보안
 
-- `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID`는 Cloudflare Secrets로만 관리합니다.
+- `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID`, `SLACK_SQLD_CHANNEL_ID`는 Cloudflare Secrets로만 관리합니다.
 - 로컬 비밀값은 `.dev.vars`에 저장하며 Git에 커밋하지 않습니다.
 - 배포된 Worker의 `/test/command` 경로는 외부에서 사용할 수 없습니다.
 - 토큰이 로그, 화면 공유 또는 저장소에 노출되면 즉시 Slack에서 폐기하고 Cloudflare 비밀값을 교체합니다.

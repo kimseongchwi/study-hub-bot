@@ -1,4 +1,11 @@
-import { QUESTIONS, type QuestionKind, type StudyQuestion } from "./questions";
+import {
+  DEFAULT_CERTIFICATION_ID,
+  QUESTION_BANKS,
+  getQuestionBank,
+  type CertificationId,
+  type QuestionKind,
+  type StudyQuestion
+} from "./question-bank";
 import {
   getAttempts,
   getDailySubscriptionStatus,
@@ -12,13 +19,6 @@ import {
   setDailySubscription,
   type AttemptRecord
 } from "./storage";
-
-export interface Env {
-  SLACK_SIGNING_SECRET: string;
-  SLACK_BOT_TOKEN: string;
-  SLACK_CHANNEL_ID: string;
-  DB?: D1Database;
-}
 
 interface SlackEventPayload {
   type: string;
@@ -68,7 +68,11 @@ type StudyTopic =
   | "linux"
   | "web"
   | "api"
-  | "emerging";
+  | "emerging"
+  | "modeling"
+  | "sql_basic"
+  | "sql_advanced"
+  | "management";
 
 interface QuizCommand {
   type: "quiz";
@@ -137,6 +141,7 @@ interface SetDescriptor {
   count: number;
   mode: StudyMode;
   topic: StudyTopic;
+  certificationId: CertificationId;
 }
 
 const KIND_LABELS: Record<QuestionKind, string> = {
@@ -163,7 +168,11 @@ const TOPIC_TAGS: Record<Exclude<StudyTopic, "all">, string[]> = {
   linux: ["linux", "리눅스"],
   web: ["web", "웹", "http"],
   api: ["api", "interface", "rest"],
-  emerging: ["emerging", "신기술"]
+  emerging: ["emerging", "신기술"],
+  modeling: ["modeling"],
+  sql_basic: ["sql-basic"],
+  sql_advanced: ["sql-advanced"],
+  management: ["management"]
 };
 
 const TOPIC_LABELS: Record<StudyTopic, string> = {
@@ -184,10 +193,15 @@ const TOPIC_LABELS: Record<StudyTopic, string> = {
   linux: "리눅스",
   web: "웹",
   api: "API",
-  emerging: "신기술"
+  emerging: "신기술",
+  modeling: "데이터 모델링",
+  sql_basic: "SQL 기본",
+  sql_advanced: "SQL 활용",
+  management: "관리 구문"
 };
 
-const QUESTION_BY_ID = new Map(QUESTIONS.map((question) => [question.id, question]));
+const ALL_QUESTIONS = Object.values(QUESTION_BANKS).flatMap((bank) => bank.questions);
+const QUESTION_BY_ID = new Map(ALL_QUESTIONS.map((question) => [question.id, question]));
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -210,7 +224,8 @@ export default {
       }
 
       const input = url.searchParams.get("text")?.trim() || "문제줘";
-      const command = parseCommand(input);
+      const certificationId = url.searchParams.get("certification") === "sqld" ? "sqld" : DEFAULT_CERTIFICATION_ID;
+      const command = parseCommand(input, certificationId);
 
       if (!command) {
         return textResponse(
@@ -220,11 +235,11 @@ export default {
       }
 
       if (command.type === "help") {
-        return textResponse(buildHelpMessage());
+        return textResponse(buildHelpMessage(certificationId));
       }
 
       if (command.type === "subjects") {
-        return textResponse(buildSubjectsMessage());
+        return textResponse(buildSubjectsMessage(certificationId));
       }
 
       if (command.type === "reveal") {
@@ -235,7 +250,7 @@ export default {
         return textResponse("학습 기록 명령은 Slack과 D1이 연결된 환경에서 사용하세요.", 400);
       }
 
-      return textResponse(buildQuizMessage(createDescriptor(command)));
+      return textResponse(buildQuizMessage(createDescriptor(command, certificationId)));
     }
 
     if (request.method !== "POST" || url.pathname !== "/slack/events") {
@@ -274,6 +289,8 @@ export default {
 
     const subscriptions = await getDailySubscriptions(db);
     const jobs = subscriptions.map(async (subscription) => {
+      const certificationId = getCertificationId(subscription.channelId, env);
+      if (!certificationId) return;
       const command: QuizCommand = {
         type: "quiz",
         count: subscription.questionCount,
@@ -284,7 +301,8 @@ export default {
         command,
         subscription.userId,
         subscription.channelId,
-        db
+        db,
+        certificationId
       );
       await postSlackMessage(env.SLACK_BOT_TOKEN, subscription.channelId, message);
     });
@@ -308,11 +326,10 @@ async function handleSlackEvent(payload: SlackEventPayload, env: Env): Promise<v
     return;
   }
 
-  if (event.channel !== env.SLACK_CHANNEL_ID) {
-    return;
-  }
+  const certificationId = getCertificationId(event.channel, env);
+  if (!certificationId) return;
 
-  const command = parseCommand(event.text);
+  const command = parseCommand(event.text, certificationId);
 
   if (!command) {
     return;
@@ -323,21 +340,21 @@ async function handleSlackEvent(payload: SlackEventPayload, env: Env): Promise<v
   let message: string;
 
   if (command.type === "help") {
-    message = buildHelpMessage();
+    message = buildHelpMessage(certificationId);
   } else if (command.type === "subjects") {
-    message = buildSubjectsMessage();
+    message = buildSubjectsMessage(certificationId);
   } else if (command.type === "quiz") {
     message = env.DB
-      ? await buildTrackedQuizMessage(command, userId, event.channel, env.DB)
-      : buildQuizMessage(createDescriptor(command));
+      ? await buildTrackedQuizMessage(command, userId, event.channel, env.DB, certificationId)
+      : buildQuizMessage(createDescriptor(command, certificationId));
   } else if (command.type === "review") {
-    message = await buildReviewMessage(command, userId, event.channel, env.DB);
+    message = await buildReviewMessage(command, userId, event.channel, env.DB, certificationId);
   } else if (command.type === "remove-review") {
     message = await buildRemoveReviewMessage(command, userId, event.channel, event.thread_ts, env);
   } else if (command.type === "grade") {
     message = await buildGradeMessage(command, userId, event.channel, event.thread_ts, env);
   } else if (command.type === "stats") {
-    message = await buildStatsMessage(userId, env.DB, command.todayOnly);
+    message = await buildStatsMessage(userId, env.DB, command.todayOnly, certificationId);
   } else if (command.type === "daily-subscription") {
     message = await buildDailySubscriptionMessage(command, userId, event.channel, env.DB);
   } else {
@@ -347,7 +364,13 @@ async function handleSlackEvent(payload: SlackEventPayload, env: Env): Promise<v
   await postSlackMessage(env.SLACK_BOT_TOKEN, event.channel, message, threadTs);
 }
 
-export function parseCommand(input: string): Command {
+function getCertificationId(channelId: string, env: Env): CertificationId | null {
+  if (channelId === env.SLACK_SQLD_CHANNEL_ID) return "sqld";
+  if (channelId === env.SLACK_CHANNEL_ID) return DEFAULT_CERTIFICATION_ID;
+  return null;
+}
+
+export function parseCommand(input: string, certificationId: CertificationId = DEFAULT_CERTIFICATION_ID): Command {
   const text = input
     .replace(/<@[^>]+>/g, "")
     .trim()
@@ -380,7 +403,7 @@ export function parseCommand(input: string): Command {
   if (reviewMatch) {
     return {
       type: "review",
-      count: clampQuestionCount(reviewMatch[2] ? Number(reviewMatch[2]) : 5),
+      count: clampQuestionCount(reviewMatch[2] ? Number(reviewMatch[2]) : 5, certificationId),
       weakFirst: reviewMatch[1] === "취약"
     };
   }
@@ -402,7 +425,7 @@ export function parseCommand(input: string): Command {
     return {
       type: "daily-subscription",
       action: dailySubscriptionMatch[2] === "켜기" ? "enable" : "disable",
-      count: clampQuestionCount(dailySubscriptionMatch[1] ? Number(dailySubscriptionMatch[1]) : 5)
+      count: clampQuestionCount(dailySubscriptionMatch[1] ? Number(dailySubscriptionMatch[1]) : 5, certificationId)
     };
   }
 
@@ -410,7 +433,7 @@ export function parseCommand(input: string): Command {
   if (noRepeatMatch) {
     return {
       type: "quiz",
-      count: clampQuestionCount(noRepeatMatch[1] ? Number(noRepeatMatch[1]) : 10),
+      count: clampQuestionCount(noRepeatMatch[1] ? Number(noRepeatMatch[1]) : 10, certificationId),
       mode: "mixed",
       topic: "all",
       label: "중복 없는"
@@ -438,7 +461,8 @@ export function parseCommand(input: string): Command {
 
   const mockMatch = text.match(/^모의고사(?:\s*(\d+)\s*개)?$/);
   if (mockMatch) {
-    return { type: "quiz", count: clampQuestionCount(mockMatch[1] ? Number(mockMatch[1]) : 20), mode: "mock", topic: "all" };
+    const count = mockMatch[1] ? Number(mockMatch[1]) : certificationId === "sqld" ? 50 : 20;
+    return { type: "quiz", count: clampQuestionCount(count, certificationId), mode: "mock", topic: "all" };
   }
 
   if (/^오늘\s*(문제)?$/.test(text)) {
@@ -454,7 +478,7 @@ export function parseCommand(input: string): Command {
   if (countMatch) {
     return {
       type: "quiz",
-      count: clampQuestionCount(Number(countMatch[1])),
+      count: clampQuestionCount(Number(countMatch[1]), certificationId),
       mode: "mixed",
       topic: "all"
     };
@@ -463,22 +487,22 @@ export function parseCommand(input: string): Command {
   const topicMatch = text.match(/^(.+?)\s*문제(?:\s*(\d+)\s*개)?(?:\s*줘)?$/);
 
   if (topicMatch) {
-    const normalized = normalizeTopic(topicMatch[1]);
+    const normalized = normalizeTopic(topicMatch[1], certificationId);
     if (!normalized) return null;
     return {
       type: "quiz",
-      count: clampQuestionCount(topicMatch[2] ? Number(topicMatch[2]) : 10),
+      count: clampQuestionCount(topicMatch[2] ? Number(topicMatch[2]) : 10, certificationId),
       ...normalized
     };
   }
 
   const shortMatch = text.match(/^(.+?)(?:\s*(\d+)\s*개)?$/);
   if (shortMatch) {
-    const normalized = normalizeTopic(shortMatch[1]);
+    const normalized = normalizeTopic(shortMatch[1], certificationId);
     if (!normalized) return null;
     return {
       type: "quiz",
-      count: clampQuestionCount(shortMatch[2] ? Number(shortMatch[2]) : 10),
+      count: clampQuestionCount(shortMatch[2] ? Number(shortMatch[2]) : 10, certificationId),
       ...normalized
     };
   }
@@ -486,8 +510,40 @@ export function parseCommand(input: string): Command {
   return null;
 }
 
-function normalizeTopic(raw: string): Pick<QuizCommand, "mode" | "topic" | "label"> | null {
+function normalizeTopic(
+  raw: string,
+  certificationId: CertificationId
+): Pick<QuizCommand, "mode" | "topic" | "label"> | null {
   const value = raw.trim().toLowerCase().replace(/\s+/g, "");
+
+  if (certificationId === "sqld") {
+    if (["데이터모델링", "모델링", "모델", "엔터티", "속성", "관계", "식별자", "정규화"].includes(value)) {
+      return { mode: "choice", topic: "modeling", label: "데이터 모델링" };
+    }
+    if (["sql기본", "기본sql", "select", "함수", "where", "groupby", "having", "join", "조인", "표준조인"].includes(value)) {
+      return { mode: "choice", topic: "sql_basic", label: "SQL 기본" };
+    }
+    if (
+      [
+        "sql활용",
+        "활용sql",
+        "서브쿼리",
+        "집합연산자",
+        "그룹함수",
+        "윈도우함수",
+        "topn",
+        "계층형질의",
+        "pivot",
+        "unpivot",
+        "정규표현식"
+      ].includes(value)
+    ) {
+      return { mode: "choice", topic: "sql_advanced", label: "SQL 활용" };
+    }
+    if (["관리구문", "dml", "ddl", "dcl", "tcl"].includes(value)) {
+      return { mode: "choice", topic: "management", label: "관리 구문" };
+    }
+  }
 
   if (["종합", "랜덤", "혼합"].includes(value)) {
     return { mode: "mixed", topic: "all", label: raw.trim() };
@@ -568,14 +624,14 @@ function normalizeTopic(raw: string): Pick<QuizCommand, "mode" | "topic" | "labe
   return null;
 }
 
-function clampQuestionCount(count: number): number {
+function clampQuestionCount(count: number, certificationId: CertificationId = DEFAULT_CERTIFICATION_ID): number {
   if (!Number.isFinite(count)) {
     return 10;
   }
-  return Math.min(20, Math.max(1, Math.trunc(count)));
+  return Math.min(certificationId === "sqld" ? 50 : 20, Math.max(1, Math.trunc(count)));
 }
 
-function createDescriptor(command: QuizCommand): SetDescriptor {
+function createDescriptor(command: QuizCommand, certificationId: CertificationId): SetDescriptor {
   const values = new Uint32Array(1);
   if (command.mode === "daily") {
     const kstDay = Math.floor((Date.now() + 9 * 60 * 60 * 1000) / 86_400_000);
@@ -587,7 +643,8 @@ function createDescriptor(command: QuizCommand): SetDescriptor {
     seed: values[0],
     count: command.count,
     mode: command.mode,
-    topic: command.topic
+    topic: command.topic,
+    certificationId
   };
 }
 
@@ -597,8 +654,9 @@ function buildQuizMessage(descriptor: SetDescriptor): string {
 }
 
 function getQuizTitle(descriptor: SetDescriptor): string {
+  const certificationName = getQuestionBank(descriptor.certificationId).name;
   const titleMap: Partial<Record<StudyMode, string>> = {
-    mock: "정보처리기사 실기 모의고사",
+    mock: `${certificationName} 모의고사`,
     frequent: "빈출 집중 문제",
     terms: "용어·단답 집중 문제",
     calculation: "계산형 집중 문제",
@@ -606,7 +664,7 @@ function getQuizTitle(descriptor: SetDescriptor): string {
     daily: "오늘의 문제"
   };
   return descriptor.topic === "all"
-    ? (titleMap[descriptor.mode] ?? "정보처리기사 실기·복습 혼합 문제")
+    ? (titleMap[descriptor.mode] ?? `${certificationName} 혼합 문제`)
     : `${TOPIC_LABELS[descriptor.topic]} 집중 문제`;
 }
 
@@ -634,15 +692,16 @@ async function buildTrackedQuizMessage(
   command: QuizCommand,
   userId: string,
   channelId: string,
-  db: D1Database
+  db: D1Database,
+  certificationId: CertificationId
 ): Promise<string> {
   const recentlyServed = await getRecentlyServedQuestionIds(db, userId);
-  let bestDescriptor = createDescriptor(command);
+  let bestDescriptor = createDescriptor(command, certificationId);
   let bestQuestions = selectQuestions(bestDescriptor);
   let bestOverlap = countOverlap(bestQuestions, recentlyServed);
 
   for (let attempt = 0; attempt < 12 && bestOverlap > 0; attempt += 1) {
-    const candidate = createDescriptor(command);
+    const candidate = createDescriptor(command, certificationId);
     if (command.mode === "daily") candidate.seed = (candidate.seed + attempt + 1) >>> 0;
     const candidateQuestions = selectQuestions(candidate);
     const overlap = countOverlap(candidateQuestions, recentlyServed);
@@ -682,27 +741,41 @@ function createSessionCode(): string {
 }
 
 function selectQuestions(descriptor: SetDescriptor): StudyQuestion[] {
+  const questions = getQuestionBank(descriptor.certificationId).questions;
   const random = createSeededRandom(descriptor.seed);
   const selected: StudyQuestion[] = [];
-  const topicPool = QUESTIONS.filter((question) => matchesTopic(question, descriptor.topic));
+  const topicPool = questions.filter((question) => matchesTopic(question, descriptor.topic));
 
   if (descriptor.topic !== "all") {
     takeUnique(selected, shuffled(topicPool, random), descriptor.count);
-    const fallback = filterByMode(QUESTIONS, descriptor.mode);
+    const fallback = filterByMode(questions, descriptor.mode, descriptor.certificationId);
     takeUnique(selected, shuffled(fallback, random), descriptor.count);
     return selected.slice(0, descriptor.count);
   }
 
-  if (descriptor.mode === "terms") {
-    takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.kind === "concept"), random), descriptor.count);
-  } else if (descriptor.mode === "calculation") {
-    takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.tags.includes("calculation")), random), descriptor.count);
-  } else if (descriptor.mode === "advanced") {
-    takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.difficulty === "심화"), random), descriptor.count);
-  } else if (descriptor.mode === "frequent") {
-    const frequentPool = QUESTIONS.filter((question) =>
-      question.tags.some((tag) => ["code", "sql", "database", "security", "os", "test"].includes(tag))
+  if (
+    descriptor.certificationId === "sqld" &&
+    ["mixed", "mock", "daily"].includes(descriptor.mode)
+  ) {
+    const modelingTarget = Math.max(1, Math.round(descriptor.count * 0.2));
+    takeUnique(
+      selected,
+      shuffled(questions.filter((question) => question.tags.includes("modeling")), random),
+      modelingTarget
     );
+    takeUnique(
+      selected,
+      shuffled(questions.filter((question) => !question.tags.includes("modeling")), random),
+      descriptor.count
+    );
+  } else if (descriptor.mode === "terms") {
+    takeUnique(selected, shuffled(questions.filter((question) => question.kind === "concept"), random), descriptor.count);
+  } else if (descriptor.mode === "calculation") {
+    takeUnique(selected, shuffled(questions.filter((question) => question.tags.includes("calculation")), random), descriptor.count);
+  } else if (descriptor.mode === "advanced") {
+    takeUnique(selected, shuffled(questions.filter((question) => question.difficulty === "심화"), random), descriptor.count);
+  } else if (descriptor.mode === "frequent") {
+    const frequentPool = filterByMode(questions, "frequent", descriptor.certificationId);
     const codeTarget = Math.round(descriptor.count * 0.4);
     const dataTarget = Math.round(descriptor.count * 0.2);
     takeUnique(selected, shuffled(frequentPool.filter((question) => question.kind === "code"), random), codeTarget);
@@ -713,27 +786,27 @@ function selectQuestions(descriptor: SetDescriptor): StudyQuestion[] {
     );
     takeUnique(selected, shuffled(frequentPool, random), descriptor.count);
   } else if (descriptor.mode === "choice") {
-    takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.kind === "choice"), random), descriptor.count);
+    takeUnique(selected, shuffled(questions.filter((question) => question.kind === "choice"), random), descriptor.count);
   } else if (descriptor.mode === "concept") {
     takeUnique(
       selected,
-      shuffled(QUESTIONS.filter((question) => question.kind === "concept" || question.kind === "choice"), random),
+      shuffled(questions.filter((question) => question.kind === "concept" || question.kind === "choice"), random),
       descriptor.count
     );
   } else if (descriptor.mode === "practical") {
     const codeTarget = Math.ceil(descriptor.count * 0.6);
-    takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.kind === "code"), random), codeTarget);
-    takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.kind === "sql"), random), descriptor.count);
+    takeUnique(selected, shuffled(questions.filter((question) => question.kind === "code"), random), codeTarget);
+    takeUnique(selected, shuffled(questions.filter((question) => question.kind === "sql"), random), descriptor.count);
   } else {
     const codeTarget = Math.round(descriptor.count * 0.4);
     const dataTarget = Math.max(1, Math.round(descriptor.count * 0.2));
     const choiceTarget = Math.max(1, Math.round(descriptor.count * 0.3));
 
-    takeUnique(selected, shuffled(QUESTIONS.filter((question) => question.kind === "code"), random), codeTarget);
+    takeUnique(selected, shuffled(questions.filter((question) => question.kind === "code"), random), codeTarget);
     takeUnique(
       selected,
       shuffled(
-        QUESTIONS.filter(
+        questions.filter(
           (question) => question.kind === "sql" || (question.kind === "concept" && question.tags.includes("database"))
         ),
         random
@@ -742,21 +815,27 @@ function selectQuestions(descriptor: SetDescriptor): StudyQuestion[] {
     );
     takeUnique(
       selected,
-      shuffled(QUESTIONS.filter((question) => question.kind === "choice"), random),
+      shuffled(questions.filter((question) => question.kind === "choice"), random),
       codeTarget + dataTarget + choiceTarget
     );
     takeUnique(
       selected,
-      shuffled(QUESTIONS.filter((question) => question.kind === "concept"), random),
+      shuffled(questions.filter((question) => question.kind === "concept"), random),
       descriptor.count
     );
   }
 
-  takeUnique(selected, shuffled(filterByMode(QUESTIONS, descriptor.mode), random), descriptor.count);
+  takeUnique(selected, shuffled(filterByMode(questions, descriptor.mode, descriptor.certificationId), random), descriptor.count);
   return shuffled(selected.slice(0, descriptor.count), random);
 }
 
-function filterByMode(questions: StudyQuestion[], mode: StudyMode): StudyQuestion[] {
+function filterByMode(
+  questions: StudyQuestion[],
+  mode: StudyMode,
+  certificationId: CertificationId
+): StudyQuestion[] {
+  if (certificationId === "sqld" && mode === "practical") return questions;
+  if (certificationId === "sqld" && mode === "terms") return questions.filter((question) => question.kind === "choice");
   if (mode === "choice") return questions.filter((question) => question.kind === "choice");
   if (mode === "concept") return questions.filter((question) => question.kind === "concept" || question.kind === "choice");
   if (mode === "practical") return questions.filter((question) => question.kind === "code" || question.kind === "sql");
@@ -764,6 +843,9 @@ function filterByMode(questions: StudyQuestion[], mode: StudyMode): StudyQuestio
   if (mode === "calculation") return questions.filter((question) => question.tags.includes("calculation"));
   if (mode === "advanced") return questions.filter((question) => question.difficulty === "심화");
   if (mode === "frequent") {
+    if (certificationId === "sqld") {
+      return questions.filter((question) => question.tags.includes("frequent"));
+    }
     return questions.filter((question) =>
       question.tags.some((tag) => ["code", "sql", "database", "security", "os", "test"].includes(tag))
     );
@@ -805,34 +887,44 @@ function createSeededRandom(seed: number): () => number {
 }
 
 function encodeSet(descriptor: SetDescriptor): string {
-  return ["IQ3", descriptor.seed.toString(36), descriptor.count, descriptor.mode, descriptor.topic].join("-");
+  const certification = descriptor.certificationId === "sqld" ? "sqld" : "ipe";
+  return ["QB1", certification, descriptor.seed.toString(36), descriptor.count, descriptor.mode, descriptor.topic].join("-");
 }
 
 function decodeSet(token: string): SetDescriptor | null {
-  const match = token.match(
+  const legacyMatch = token.match(
     /^IQ(?:2|3)-([a-z0-9]+)-(\d+)-(mixed|practical|concept|choice|mock|frequent|terms|calculation|advanced|daily)-([a-z_]+)$/i
   );
-  if (!match) return null;
+  const match = token.match(
+    /^QB1-(ipe|sqld)-([a-z0-9]+)-(\d+)-(mixed|practical|concept|choice|mock|frequent|terms|calculation|advanced|daily)-([a-z_]+)$/i
+  );
+  if (!match && !legacyMatch) return null;
 
-  const seed = Number.parseInt(match[1], 36);
-  const count = clampQuestionCount(Number(match[2]));
-  const mode = match[3].toLowerCase() as StudyMode;
-  const topic = match[4].toLowerCase() as StudyTopic;
+  const certificationId: CertificationId = match?.[1].toLowerCase() === "sqld" ? "sqld" : DEFAULT_CERTIFICATION_ID;
+  const values = match ? match.slice(2) : legacyMatch!.slice(1);
+  const seed = Number.parseInt(values[0], 36);
+  const count = clampQuestionCount(Number(values[1]), certificationId);
+  const mode = values[2].toLowerCase() as StudyMode;
+  const topic = values[3].toLowerCase() as StudyTopic;
 
   if (!Number.isFinite(seed) || !(topic === "all" || topic in TOPIC_TAGS)) return null;
-  return { seed, count, mode, topic };
+  return { seed, count, mode, topic, certificationId };
 }
 
 async function buildReviewMessage(
   command: ReviewCommand,
   userId: string,
   channelId: string,
-  db: D1Database | undefined
+  db: D1Database | undefined,
+  certificationId: CertificationId
 ): Promise<string> {
   if (!db) return buildDatabaseSetupMessage();
 
-  const questionIds = await getReviewQuestionIds(db, userId, command.count, command.weakFirst);
+  const bankQuestionIds = new Set(getQuestionBank(certificationId).questions.map((question) => question.id));
+  const questionIds = await getReviewQuestionIds(db, userId, 1000, command.weakFirst);
   const questions = questionIds
+    .filter((questionId) => bankQuestionIds.has(questionId))
+    .slice(0, command.count)
     .map((questionId) => QUESTION_BY_ID.get(questionId))
     .filter((question): question is StudyQuestion => Boolean(question));
 
@@ -932,10 +1024,14 @@ async function buildRemoveReviewMessage(
 async function buildStatsMessage(
   userId: string,
   db: D1Database | undefined,
-  todayOnly: boolean
+  todayOnly: boolean,
+  certificationId: CertificationId
 ): Promise<string> {
   if (!db) return buildDatabaseSetupMessage();
-  const attempts = await getAttempts(db, userId, todayOnly);
+  const bankQuestionIds = new Set(getQuestionBank(certificationId).questions.map((question) => question.id));
+  const attempts = (await getAttempts(db, userId, todayOnly)).filter((attempt) =>
+    bankQuestionIds.has(attempt.questionId)
+  );
   if (attempts.length === 0) {
     return todayOnly
       ? ":bar_chart: 오늘 기록한 채점 결과가 아직 없습니다."
@@ -1121,7 +1217,9 @@ async function findQuestionsInThread(
   }
 
   for (const message of [...(result.messages ?? [])].reverse()) {
-    const token = message.text?.match(/세트 코드:\s*`?((?:IQ[23]-[a-z0-9_-]+)|(?:SQ1-[a-z0-9]+))`?/i)?.[1];
+    const token = message.text?.match(
+      /세트 코드:\s*`?((?:IQ[23]-[a-z0-9_-]+)|(?:QB1-[a-z0-9_-]+)|(?:SQ1-[a-z0-9]+))`?/i
+    )?.[1];
     if (!token) continue;
 
     if (/^SQ1-/i.test(token)) {
@@ -1140,7 +1238,37 @@ async function findQuestionsInThread(
   return null;
 }
 
-function buildHelpMessage(): string {
+function buildHelpMessage(certificationId: CertificationId): string {
+  if (certificationId === "sqld") {
+    return [
+      ":blue_book: *SQLD 공부봇 도움말*",
+      "개수를 생략하면 10문제이며, `줘`·`주세요`는 붙여도 되고 생략해도 됩니다.",
+      "",
+      "*기본 출제*",
+      "`문제`  `문제 5개`  `중복 없이 문제 10개`",
+      "`모의고사` → 실제 시험 구성에 맞춘 50문제",
+      "",
+      "*과목별 출제*",
+      "`데이터 모델링`  `SQL 기본`  `SQL 활용`  `관리 구문`",
+      "`정규화`  `서브쿼리`  `윈도우 함수`  `DDL`  `DML`",
+      "",
+      "*난이도별 출제*",
+      "`빈출`  `심화`  `계산`  `객관식`",
+      "",
+      "> 예: `데이터 모델링 5개` · `SQL 활용 문제 10개 주세요`",
+      "> `과목`을 입력하면 세부 분야를 모두 볼 수 있습니다.",
+      "",
+      "*문제를 받은 뒤 같은 스레드에서*",
+      "`3번 힌트`  `3번 정답`  `3번 풀이`",
+      "`전체 정답`  `전체 풀이`",
+      "`3번 맞음`  `3번 틀림` → 학습 결과 기록",
+      "",
+      "*오답 · 통계 · 자동 출제*",
+      "`오답 5개`  `취약 5개`  `통계`  `오늘 기록`",
+      "`매일 문제 5개 켜기`  `매일 문제 끄기`  `자동출제 확인`"
+    ].join("\n");
+  }
+
   return [
     ":blue_book: *공부봇 도움말*",
     "개수를 생략하면 10문제이며, `줘`·`주세요`는 붙여도 되고 생략해도 됩니다.",
@@ -1179,7 +1307,29 @@ function buildHelpMessage(): string {
   ].join("\n");
 }
 
-function buildSubjectsMessage(): string {
+function buildSubjectsMessage(certificationId: CertificationId): string {
+  if (certificationId === "sqld") {
+    return [
+      ":books: *SQLD 출제 가능한 과목*",
+      "",
+      "*데이터 모델링의 이해*",
+      "`데이터 모델링`  `엔터티`  `속성`  `관계`  `식별자`  `정규화`",
+      "",
+      "*SQL 기본*",
+      "`SQL 기본`  `SELECT`  `함수`  `WHERE`  `GROUP BY`  `JOIN`",
+      "",
+      "*SQL 활용*",
+      "`SQL 활용`  `서브쿼리`  `집합 연산자`  `윈도우 함수`",
+      "`Top N`  `계층형 질의`  `PIVOT`  `정규 표현식`",
+      "",
+      "*관리 구문*",
+      "`관리 구문`  `DML`  `TCL`  `DDL`  `DCL`",
+      "",
+      "> 과목 뒤에 개수와 `줘`를 자유롭게 붙일 수 있습니다.",
+      "> 예: `정규화 5개` · `SQL 활용 10개 줘`"
+    ].join("\n");
+  }
+
   return [
     ":books: *출제 가능한 과목*",
     "",
